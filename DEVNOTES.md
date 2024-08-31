@@ -27,7 +27,7 @@ This is a high level design of a simple database system. WIP.
 
 ### Analyzer
 - Takes a parse tree
-- Checks for semantic errors
+- Checks for semantic errors (for exmaple, no such table)
 - Returns a query plan (logical plan)
 
 ### Optimizer
@@ -54,3 +54,6 @@ This is a high level design of a simple database system. WIP.
 
 ## Configuration management
 - Config file?
+
+## Catalog
+- Metadata about tables, columns, indexes, etc.
