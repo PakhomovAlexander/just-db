@@ -548,11 +548,11 @@ impl<'a> Lexer<'a> {
             match c {
                 Some('.') => {
                     if second_dot_position == 0 {
-                        second_dot_position = cp;
+                        second_dot_position = self.current_position.clone();
                         return true;
                     }
                     if third_dot_position == 0 {
-                        third_dot_position = cp;
+                        third_dot_position = self.current_position.clone();
                     }
                     return true;
                 }
@@ -563,7 +563,7 @@ impl<'a> Lexer<'a> {
 
         loop {
             let c = self.get_next_and_increment();
-            if is_word(c, self.current_position) {
+            if is_word(c) {
                 continue;
             } else {
                 break;
@@ -576,7 +576,7 @@ impl<'a> Lexer<'a> {
 
         let first_name = &self.input[started_position..first_dot_position - 1];
         let second_name = if second_dot_position > 0 {
-            &self.input[first_dot_position..second_dot_position - 1]
+            &self.input[first_dot_position..second_dot_position]
         } else {
             &self.input[first_dot_position..self.get_last_token_end()]
         };
