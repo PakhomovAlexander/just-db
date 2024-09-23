@@ -1,131 +1,10 @@
+mod tokens;
+
+use tokens::Token;
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum LexError {
     InvalidCharacter(char),
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum Token<'a> {
-    // Keywords
-    Select,
-    From,
-    Where,
-    Insert,
-    Into,
-    Values,
-    Update,
-    Set,
-    Delete,
-    Create,
-    Table,
-    Primary,
-    Key,
-    Foreign,
-    References,
-    Drop,
-    Alter,
-    Add,
-    Column,
-    Constraint,
-    Index,
-    Join,
-    Inner,
-    Left,
-    Right,
-    Full,
-    Outer,
-    On,
-    Group,
-    By,
-    Order,
-    Asc,
-    Desc,
-    Union,
-    All,
-    Distinct,
-    Limit,
-    Offset,
-    Having,
-    As,
-    And,
-    Or,
-    Not,
-    Null,
-    Is,
-    In,
-    Between,
-    Like,
-    Exists,
-    Any,
-    Case,
-    When,
-    Then,
-    Else,
-    End,
-    Default,
-
-    // Data Types
-    Int,
-    Integer,
-    SmallInt,
-    TinyInt,
-    BigInt,
-    Float,
-    Real,
-    Double,
-    Decimal,
-    Numeric,
-    VarChar,
-    Char,
-    Text,
-    Date,
-    DateTime,
-    Time,
-    Timestamp,
-    Boolean,
-
-    // Symbols and Operators
-    Asterisk,
-    Comma,
-    Semicolon,
-    OpenParen,
-    CloseParen,
-    Equals,
-    NotEquals,
-    LessThan,
-    GreaterThan,
-    LessThanOrEquals,
-    GreaterThanOrEquals,
-    Plus,
-    Minus,
-    Slash,
-    Percent,
-    Concat,
-    SingleQuote,
-    DoubleQuote,
-
-    // Identifiers and Literals
-    Identifier {
-        first_name: &'a str,
-        second_name: Option<&'a str>,
-        third_name: Option<&'a str>,
-    },
-
-    StringLiteral(String),
-    NumericLiteral(String),
-    BooleanLiteral(bool),
-
-    SingleLineComment(String),
-    MultiLineComment(String),
-}
-
-impl<'a> Token<'a> {
-    pub fn identifier(first_name: &'a str) -> Token<'a> {
-        Token::Identifier {
-            first_name,
-            second_name: None,
-            third_name: None,
-        }
-    }
 }
 
 pub struct Lexer<'a> {
@@ -133,43 +12,42 @@ pub struct Lexer<'a> {
     input_iterator: std::str::Chars<'a>,
     current_position: usize,
     is_finished: bool,
+    cache: Option<char>,
 }
 
 impl<'a> Iterator for Lexer<'a> {
     type Item = Result<Token<'a>, LexError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            let c = self.skip_whitespace()?;
+        let c = self.move_and_skip_whitespace()?;
 
-            match c {
-                '*' => return Some(self.single(Token::Asterisk)),
-                ',' => return Some(self.single(Token::Comma)),
-                '=' => return Some(self.single(Token::Equals)),
-                '+' => return Some(self.single(Token::Plus)),
-                '%' => return Some(self.single(Token::Percent)),
-                '|' => return Some(self.single(Token::Concat)),
-                // may be part of longer token
-                '<' => return Some(self.may_be_longer(Token::LessThan)),
-                '-' => return Some(self.may_be_longer(Token::Minus)),
-                '>' => return Some(self.may_be_longer(Token::GreaterThan)),
-                '/' => return Some(self.may_be_longer(Token::Slash)),
-                '\'' => return Some(self.may_be_longer(Token::SingleQuote)),
-                '"' => return Some(self.may_be_longer(Token::DoubleQuote)),
-                '(' => return Some(Ok(Token::OpenParen)),
-                ')' => return Some(Ok(Token::CloseParen)),
-                ';' => return Some(Ok(Token::Semicolon)),
-                c => {
-                    if c.is_alphabetic() {
-                        return Some(self.word_started());
-                    } else if c.is_numeric() {
-                        return Some(self.numeric_started(false));
-                    } else {
-                        return Some(Err(LexError::InvalidCharacter(c)));
-                    }
+        match c {
+            '*' => return Some(self.single(Token::Asterisk)),
+            ',' => return Some(self.single(Token::Comma)),
+            '=' => return Some(self.single(Token::Equals)),
+            '+' => return Some(self.single(Token::Plus)),
+            '%' => return Some(self.single(Token::Percent)),
+            '|' => return Some(self.single(Token::Concat)),
+            // may be part of longer token
+            '<' => return Some(self.may_be_longer(Token::LessThan)),
+            '-' => return Some(self.may_be_longer(Token::Minus)),
+            '>' => return Some(self.may_be_longer(Token::GreaterThan)),
+            '/' => return Some(self.may_be_longer(Token::Slash)),
+            '\'' => return Some(self.may_be_longer(Token::SingleQuote)),
+            '"' => return Some(self.may_be_longer(Token::DoubleQuote)),
+            '(' => return Some(Ok(Token::OpenParen)),
+            ')' => return Some(Ok(Token::CloseParen)),
+            ';' => return Some(Ok(Token::Semicolon)),
+            c => {
+                if c.is_alphabetic() {
+                    return Some(self.word_started());
+                } else if c.is_numeric() {
+                    return Some(self.numeric_started(false));
+                } else {
+                    return Some(Err(LexError::InvalidCharacter(c)));
                 }
-            };
-        }
+            }
+        };
     }
 }
 
@@ -180,6 +58,7 @@ impl<'a> Lexer<'a> {
             input_iterator: input.chars(),
             current_position: 0,
             is_finished: false,
+            cache: None,
         }
     }
 
@@ -214,7 +93,13 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    pub fn skip_whitespace(&mut self) -> Option<char> {
+    pub fn move_and_skip_whitespace(&mut self) -> Option<char> {
+        if self.cache.is_some() {
+            let c = self.cache;
+            self.cache = None;
+            return c;
+        }
+
         while let Some(c) = self.get_next_and_increment() {
             if !c.is_whitespace() {
                 return Some(c);
@@ -285,6 +170,15 @@ impl<'a> Lexer<'a> {
                 if c == Some('.') {
                     return self.identifier_dot_started(started_position);
                 }
+                if c.is_none() {
+                    break;
+                }
+
+                // here c might be ')' or ',' or '('
+                if [')', ',', ';'].contains(&c.unwrap()) {
+                    self.cache(c);
+                }
+
                 break;
             }
         }
@@ -593,11 +487,21 @@ impl<'a> Lexer<'a> {
             third_name,
         });
     }
+
+    fn cache(&mut self, c: Option<char>) {
+        if self.cache.is_some() {
+            panic!("Cache is already full");
+        }
+
+        self.cache = c;
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::parser::lexer::{LexError, Lexer, Token};
+    use pretty_assertions::assert_eq;
+    use rstest::rstest;
 
     #[test]
     fn lex_empty_input() {
@@ -935,6 +839,119 @@ mod tests {
                 second_name: Some("t6able"),
                 third_name: Some("column_7"),
             }),
+        ];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn close_paren() {
+        let input = "false) and";
+        let lexer = Lexer::new(input);
+        let actual: Vec<Result<Token, LexError>> = lexer.collect();
+
+        let expected = vec![
+            Ok(Token::BooleanLiteral(false)),
+            Ok(Token::CloseParen),
+            Ok(Token::And),
+        ];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[rstest]
+    fn lex_all(
+        #[values(
+            "\
+            select * 
+            from table1 \
+            where column1 = 123 and column2 = 'hello' \
+                or column3 = 456.789 and column4 = -123 \
+                or (column5 = -456.789 or column7 = false) and column6 = true \
+                and column8 = DATE '2021-01-01' and 1 + 1 = 2 \
+                -- this is a comment \n
+            /* this is a multi-line 
+               comment */; \
+            ",
+            "\
+            SELECT * 
+            FROM table1 \
+            WHERE column1 = 123 AND column2 = 'hello' \
+                OR column3 = 456.789 AND column4 = -123 \
+                OR (column5 = -456.789 OR column7 = FALSE) AND column6 = TRUE \
+                AND column8 = DATE '2021-01-01' AND 1 + 1 = 2 \
+                -- this is a comment \n
+            /* this is a multi-line 
+               comment */; \
+            ",
+            "\
+            Select * 
+            From table1 \
+            wherE column1 = 123 aNd column2 = 'hello' \
+                OR column3 = 456.789 AND column4 = -123 \
+                OR (column5 = -456.789 OR column7 = False) AND column6 = True \
+                AND column8 = date '2021-01-01' and 1 + 1 = 2 \
+                -- this is a comment \n
+            /* this is a multi-line 
+               comment */; \
+            "
+        )]
+        input: &str,
+    ) {
+        let lexer = Lexer::new(input);
+        let actual: Vec<Result<Token, LexError>> = lexer.collect();
+
+        let expected = vec![
+            Ok(Token::Select),
+            Ok(Token::Asterisk),
+            Ok(Token::From),
+            Ok(Token::identifier("table1")),
+            Ok(Token::Where),
+            Ok(Token::identifier("column1")),
+            Ok(Token::Equals),
+            Ok(Token::NumericLiteral("123".to_string())),
+            Ok(Token::And),
+            Ok(Token::identifier("column2")),
+            Ok(Token::Equals),
+            Ok(Token::StringLiteral("hello".to_string())),
+            Ok(Token::Or),
+            Ok(Token::identifier("column3")),
+            Ok(Token::Equals),
+            Ok(Token::NumericLiteral("456.789".to_string())),
+            Ok(Token::And),
+            Ok(Token::identifier("column4")),
+            Ok(Token::Equals),
+            Ok(Token::NumericLiteral("-123".to_string())),
+            Ok(Token::Or),
+            Ok(Token::OpenParen),
+            Ok(Token::identifier("column5")),
+            Ok(Token::Equals),
+            Ok(Token::NumericLiteral("-456.789".to_string())),
+            Ok(Token::Or),
+            Ok(Token::identifier("column7")),
+            Ok(Token::Equals),
+            Ok(Token::BooleanLiteral(false)),
+            Ok(Token::CloseParen),
+            Ok(Token::And),
+            Ok(Token::identifier("column6")),
+            Ok(Token::Equals),
+            Ok(Token::BooleanLiteral(true)),
+            Ok(Token::And),
+            Ok(Token::identifier("column8")),
+            Ok(Token::Equals),
+            Ok(Token::Date),
+            Ok(Token::StringLiteral("2021-01-01".to_string())),
+            Ok(Token::And),
+            Ok(Token::NumericLiteral("1".to_string())),
+            Ok(Token::Plus),
+            Ok(Token::NumericLiteral("1".to_string())),
+            Ok(Token::Equals),
+            Ok(Token::NumericLiteral("2".to_string())),
+            Ok(Token::SingleLineComment(" this is a comment ".to_string())),
+            Ok(Token::MultiLineComment(
+                " this is a multi-line \n               comment ".to_string(),
+            )),
+            Ok(Token::Semicolon),
         ];
 
         assert_eq!(actual, expected);

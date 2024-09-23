@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 nom = "7"
+pretty_assertions = "1.4.1"
 
 [dev-dependencies]
 rstest = "0.9.0"
