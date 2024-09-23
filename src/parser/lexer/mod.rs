@@ -35,9 +35,9 @@ impl<'a> Iterator for Lexer<'a> {
             '/' => return Some(self.may_be_longer(Token::Slash)),
             '\'' => return Some(self.may_be_longer(Token::SingleQuote)),
             '"' => return Some(self.may_be_longer(Token::DoubleQuote)),
-            '(' => return Some(Ok(Token::OpenParen)),
-            ')' => return Some(Ok(Token::CloseParen)),
-            ';' => return Some(Ok(Token::Semicolon)),
+            '(' => Some(Ok(Token::OpenParen)),
+            ')' => Some(Ok(Token::CloseParen)),
+            ';' => Some(Ok(Token::Semicolon)),
             c => {
                 if c.is_alphabetic() {
                     return Some(self.word_started());
@@ -47,7 +47,7 @@ impl<'a> Iterator for Lexer<'a> {
                     return Some(Err(LexError::InvalidCharacter(c)));
                 }
             }
-        };
+        }
     }
 }
 
@@ -70,7 +70,7 @@ impl<'a> Lexer<'a> {
             self.is_finished = true;
         }
 
-        return c;
+        c
     }
 
     fn get_last_token_end(&self) -> usize {
@@ -84,12 +84,12 @@ impl<'a> Lexer<'a> {
         match self.get_next_and_increment() {
             Some(c) => {
                 if c.is_whitespace() {
-                    return Ok(token);
+                    Ok(token)
                 } else {
-                    return Err(LexError::InvalidCharacter(c));
+                    Err(LexError::InvalidCharacter(c))
                 }
             }
-            None => return Ok(token),
+            None => Ok(token),
         }
     }
 
@@ -105,7 +105,7 @@ impl<'a> Lexer<'a> {
                 return Some(c);
             }
         }
-        return None;
+        None
     }
 
     fn may_be_longer(&mut self, first: Token<'a>) -> Result<Token<'a>, LexError> {
@@ -118,37 +118,37 @@ impl<'a> Lexer<'a> {
 
         match first {
             Token::LessThan => match second {
-                Some('=') => return Ok(Token::LessThanOrEquals),
-                Some('>') => return Ok(Token::NotEquals),
-                Some(' ') => return Ok(Token::LessThan),
-                Some(c) => return Err(LexError::InvalidCharacter(c)),
-                None => return Ok(Token::LessThan),
+                Some('=') => Ok(Token::LessThanOrEquals),
+                Some('>') => Ok(Token::NotEquals),
+                Some(' ') => Ok(Token::LessThan),
+                Some(c) => Err(LexError::InvalidCharacter(c)),
+                None => Ok(Token::LessThan),
             },
             Token::GreaterThan => match second {
-                Some('=') => return Ok(Token::GreaterThanOrEquals),
-                Some(' ') => return Ok(Token::GreaterThan),
-                Some(c) => return Err(LexError::InvalidCharacter(c)),
-                None => return Ok(Token::GreaterThan),
+                Some('=') => Ok(Token::GreaterThanOrEquals),
+                Some(' ') => Ok(Token::GreaterThan),
+                Some(c) => Err(LexError::InvalidCharacter(c)),
+                None => Ok(Token::GreaterThan),
             },
             Token::Slash => match second {
-                Some(' ') => return Ok(Token::Slash),
-                Some('*') => return self.multi_line_comment_started(),
-                Some(c) => return Err(LexError::InvalidCharacter(c)),
-                None => return Ok(Token::Slash),
+                Some(' ') => Ok(Token::Slash),
+                Some('*') => self.multi_line_comment_started(),
+                Some(c) => Err(LexError::InvalidCharacter(c)),
+                None => Ok(Token::Slash),
             },
             Token::Minus => match second {
-                Some(' ') => return Ok(Token::Minus),
+                Some(' ') => Ok(Token::Minus),
                 Some('-') => return self.single_line_comment_started(),
                 Some(c) => {
                     if c.is_numeric() {
                         return self.numeric_started(true);
                     }
 
-                    return Err(LexError::InvalidCharacter(c));
+                    Err(LexError::InvalidCharacter(c))
                 }
-                None => return Ok(Token::Minus),
+                None => Ok(Token::Minus),
             },
-            _ => return Err(LexError::InvalidCharacter(second.unwrap())),
+            _ => Err(LexError::InvalidCharacter(second.unwrap())),
         }
     }
 
@@ -188,159 +188,159 @@ impl<'a> Lexer<'a> {
         let lower_case_word = word.to_lowercase();
 
         if lower_case_word == "select" {
-            return Ok(Token::Select);
+            Ok(Token::Select)
         } else if lower_case_word == "from" {
-            return Ok(Token::From);
+            Ok(Token::From)
         } else if lower_case_word == "where" {
-            return Ok(Token::Where);
+            Ok(Token::Where)
         } else if lower_case_word == "insert" {
-            return Ok(Token::Insert);
+            Ok(Token::Insert)
         } else if lower_case_word == "into" {
-            return Ok(Token::Into);
+            Ok(Token::Into)
         } else if lower_case_word == "values" {
-            return Ok(Token::Values);
+            Ok(Token::Values)
         } else if lower_case_word == "update" {
-            return Ok(Token::Update);
+            Ok(Token::Update)
         } else if lower_case_word == "set" {
-            return Ok(Token::Set);
+            Ok(Token::Set)
         } else if lower_case_word == "delete" {
-            return Ok(Token::Delete);
+            Ok(Token::Delete)
         } else if lower_case_word == "create" {
-            return Ok(Token::Create);
+            Ok(Token::Create)
         } else if lower_case_word == "table" {
-            return Ok(Token::Table);
+            Ok(Token::Table)
         } else if lower_case_word == "primary" {
-            return Ok(Token::Primary);
+            Ok(Token::Primary)
         } else if lower_case_word == "key" {
-            return Ok(Token::Key);
+            Ok(Token::Key)
         } else if lower_case_word == "foreign" {
-            return Ok(Token::Foreign);
+            Ok(Token::Foreign)
         } else if lower_case_word == "references" {
-            return Ok(Token::References);
+            Ok(Token::References)
         } else if lower_case_word == "drop" {
-            return Ok(Token::Drop);
+            Ok(Token::Drop)
         } else if lower_case_word == "alter" {
-            return Ok(Token::Alter);
+            Ok(Token::Alter)
         } else if lower_case_word == "add" {
-            return Ok(Token::Add);
+            Ok(Token::Add)
         } else if lower_case_word == "column" {
-            return Ok(Token::Column);
+            Ok(Token::Column)
         } else if lower_case_word == "constraint" {
-            return Ok(Token::Constraint);
+            Ok(Token::Constraint)
         } else if lower_case_word == "index" {
-            return Ok(Token::Index);
+            Ok(Token::Index)
         } else if lower_case_word == "join" {
-            return Ok(Token::Join);
+            Ok(Token::Join)
         } else if lower_case_word == "inner" {
-            return Ok(Token::Inner);
+            Ok(Token::Inner)
         } else if lower_case_word == "left" {
-            return Ok(Token::Left);
+            Ok(Token::Left)
         } else if lower_case_word == "right" {
-            return Ok(Token::Right);
+            Ok(Token::Right)
         } else if lower_case_word == "full" {
-            return Ok(Token::Full);
+            Ok(Token::Full)
         } else if lower_case_word == "outer" {
-            return Ok(Token::Outer);
+            Ok(Token::Outer)
         } else if lower_case_word == "on" {
-            return Ok(Token::On);
+            Ok(Token::On)
         } else if lower_case_word == "group" {
-            return Ok(Token::Group);
+            Ok(Token::Group)
         } else if lower_case_word == "by" {
-            return Ok(Token::By);
+            Ok(Token::By)
         } else if lower_case_word == "order" {
-            return Ok(Token::Order);
+            Ok(Token::Order)
         } else if lower_case_word == "asc" {
-            return Ok(Token::Asc);
+            Ok(Token::Asc)
         } else if lower_case_word == "desc" {
-            return Ok(Token::Desc);
+            Ok(Token::Desc)
         } else if lower_case_word == "union" {
-            return Ok(Token::Union);
+            Ok(Token::Union)
         } else if lower_case_word == "all" {
-            return Ok(Token::All);
+            Ok(Token::All)
         } else if lower_case_word == "distinct" {
-            return Ok(Token::Distinct);
+            Ok(Token::Distinct)
         } else if lower_case_word == "limit" {
-            return Ok(Token::Limit);
+            Ok(Token::Limit)
         } else if lower_case_word == "offset" {
-            return Ok(Token::Offset);
+            Ok(Token::Offset)
         } else if lower_case_word == "having" {
-            return Ok(Token::Having);
+            Ok(Token::Having)
         } else if lower_case_word == "as" {
-            return Ok(Token::As);
+            Ok(Token::As)
         } else if lower_case_word == "and" {
-            return Ok(Token::And);
+            Ok(Token::And)
         } else if lower_case_word == "or" {
-            return Ok(Token::Or);
+            Ok(Token::Or)
         } else if lower_case_word == "not" {
-            return Ok(Token::Not);
+            Ok(Token::Not)
         } else if lower_case_word == "null" {
-            return Ok(Token::Null);
+            Ok(Token::Null)
         } else if lower_case_word == "is" {
-            return Ok(Token::Is);
+            Ok(Token::Is)
         } else if lower_case_word == "in" {
-            return Ok(Token::In);
+            Ok(Token::In)
         } else if lower_case_word == "between" {
-            return Ok(Token::Between);
+            Ok(Token::Between)
         } else if lower_case_word == "like" {
-            return Ok(Token::Like);
+            Ok(Token::Like)
         } else if lower_case_word == "exists" {
-            return Ok(Token::Exists);
+            Ok(Token::Exists)
         } else if lower_case_word == "any" {
-            return Ok(Token::Any);
+            Ok(Token::Any)
         } else if lower_case_word == "case" {
-            return Ok(Token::Case);
+            Ok(Token::Case)
         } else if lower_case_word == "when" {
-            return Ok(Token::When);
+            Ok(Token::When)
         } else if lower_case_word == "then" {
-            return Ok(Token::Then);
+            Ok(Token::Then)
         } else if lower_case_word == "else" {
-            return Ok(Token::Else);
+            Ok(Token::Else)
         } else if lower_case_word == "end" {
-            return Ok(Token::End);
+            Ok(Token::End)
         } else if lower_case_word == "default" {
-            return Ok(Token::Default);
+            Ok(Token::Default)
         } else if lower_case_word == "true" {
-            return Ok(Token::BooleanLiteral(true));
+            Ok(Token::BooleanLiteral(true))
         } else if lower_case_word == "false" {
-            return Ok(Token::BooleanLiteral(false));
+            Ok(Token::BooleanLiteral(false))
         } else if lower_case_word == "int" {
-            return Ok(Token::Int);
+            Ok(Token::Int)
         } else if lower_case_word == "integer" {
-            return Ok(Token::Integer);
+            Ok(Token::Integer)
         } else if lower_case_word == "smallint" {
-            return Ok(Token::SmallInt);
+            Ok(Token::SmallInt)
         } else if lower_case_word == "tinyint" {
-            return Ok(Token::TinyInt);
+            Ok(Token::TinyInt)
         } else if lower_case_word == "bigint" {
-            return Ok(Token::BigInt);
+            Ok(Token::BigInt)
         } else if lower_case_word == "float" {
-            return Ok(Token::Float);
+            Ok(Token::Float)
         } else if lower_case_word == "real" {
-            return Ok(Token::Real);
+            Ok(Token::Real)
         } else if lower_case_word == "double" {
-            return Ok(Token::Double);
+            Ok(Token::Double)
         } else if lower_case_word == "decimal" {
-            return Ok(Token::Decimal);
+            Ok(Token::Decimal)
         } else if lower_case_word == "numeric" {
-            return Ok(Token::Numeric);
+            Ok(Token::Numeric)
         } else if lower_case_word == "varchar" {
-            return Ok(Token::VarChar);
+            Ok(Token::VarChar)
         } else if lower_case_word == "char" {
-            return Ok(Token::Char);
+            Ok(Token::Char)
         } else if lower_case_word == "text" {
-            return Ok(Token::Text);
+            Ok(Token::Text)
         } else if lower_case_word == "date" {
-            return Ok(Token::Date);
+            Ok(Token::Date)
         } else if lower_case_word == "time" {
-            return Ok(Token::Time);
+            Ok(Token::Time)
         } else if lower_case_word == "timestamp" {
-            return Ok(Token::Timestamp);
+            Ok(Token::Timestamp)
         } else if lower_case_word == "datetime" {
-            return Ok(Token::DateTime);
+            Ok(Token::DateTime)
         } else if lower_case_word == "boolean" {
-            return Ok(Token::Boolean);
+            Ok(Token::Boolean)
         } else {
-            return Ok(Token::identifier(word));
+            Ok(Token::identifier(word))
         }
     }
 
@@ -406,7 +406,7 @@ impl<'a> Lexer<'a> {
         let started_position = self.current_position;
         loop {
             let c = self.get_next_and_increment();
-            if c == Some('\n') || c == None {
+            if c == Some('\n') || c.is_none() {
                 break;
             }
         }
@@ -448,7 +448,7 @@ impl<'a> Lexer<'a> {
                     if third_dot_position == 0 {
                         third_dot_position = cp;
                     }
-                    return true;
+                    true
                 }
                 Some(n) => n.is_alphabetic() || n.is_numeric() || n == '_',
                 _ => false,
@@ -481,11 +481,11 @@ impl<'a> Lexer<'a> {
             None
         };
 
-        return Ok(Token::Identifier {
+        Ok(Token::Identifier {
             first_name,
             second_name: Some(second_name),
             third_name,
-        });
+        })
     }
 
     fn cache(&mut self, c: Option<char>) {

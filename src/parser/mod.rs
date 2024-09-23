@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 pub mod lexer;
 
 ///
@@ -180,9 +182,9 @@ struct SetStatement {
 
 #[derive(Debug, PartialEq)]
 enum ColumnStatement {
-    ColumnStatement(ColumnIdentifier),
-    ColumnStatementLiteral(Literal),
-    ColumnStatementFunction(Function),
+    Identifier(ColumnIdentifier),
+    Literal(Literal),
+    Function(Function),
 }
 
 #[derive(Debug, PartialEq)]
