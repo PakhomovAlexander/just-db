@@ -1,4 +1,5 @@
 #[derive(Debug, PartialEq, Clone)]
+
 pub enum Token<'a> {
     Select,
     From,

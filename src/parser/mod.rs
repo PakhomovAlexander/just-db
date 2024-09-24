@@ -2,6 +2,8 @@
 
 pub mod lexer;
 
+use lexer::tokens::Token;
+
 ///
 /// TREE STRUCTURE
 ///
@@ -194,7 +196,7 @@ struct ColumnIdentifier {
 }
 
 #[derive(Debug, PartialEq)]
-enum Literal {
+pub enum Literal {
     Integer(i32),
     String(String),
     Float(f32),
@@ -205,4 +207,287 @@ enum Literal {
 struct Function {
     name: String,
     arguments: Vec<ColumnStatement>,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Node {
+    Leaf(Literal),
+    Inner(Op, Box<Node>, Box<Node>),
+}
+
+pub struct Parser<'a> {
+    lexer: lexer::Lexer<'a>,
+}
+
+impl Node {
+    fn inner(op: Op, left: Node, right: Node) -> Node {
+        Node::Inner(op, Box::new(left), Box::new(right))
+    }
+
+    fn leaf(literal: Literal) -> Node {
+        Node::Leaf(literal)
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Op {
+    And,
+    Or,
+
+    Plus,
+    Minus,
+    Multiply,
+    Divide,
+
+    Equals,
+    NotEquals,
+    LessThan,
+    GreaterThan,
+    LessThanOrEquals,
+    GreaterThanOrEquals,
+}
+
+impl<'a> Parser<'a> {
+    pub fn new(lexer: lexer::Lexer<'a>) -> Self {
+        Parser { lexer }
+    }
+
+    pub fn parse(&mut self) -> Node {
+        dbg!(self.parse_bp(0))
+    }
+
+    fn parse_bp(&mut self, min_bp: u8) -> Node {
+        let mut lhs = match self.lexer.next() {
+            Some(Ok(Token::NumericLiteral(i))) => Node::leaf(Literal::Integer(i.parse().unwrap())),
+            s => panic!("Unexpected token: {:?}", s),
+        };
+
+        loop {
+            let op = match self.lexer.peek() {
+                Some(Ok(Token::And)) => Op::And,
+                Some(Ok(Token::Or)) => Op::Or,
+                Some(Ok(Token::Plus)) => Op::Plus,
+                Some(Ok(Token::Minus)) => Op::Minus,
+                Some(Ok(Token::Asterisk)) => Op::Multiply,
+                Some(Ok(Token::Slash)) => Op::Divide,
+                Some(Ok(Token::Equals)) => Op::Equals,
+                Some(Ok(Token::NotEquals)) => Op::NotEquals,
+                Some(Ok(Token::LessThan)) => Op::LessThan,
+                Some(Ok(Token::GreaterThan)) => Op::GreaterThan,
+                Some(Ok(Token::LessThanOrEquals)) => Op::LessThanOrEquals,
+                Some(Ok(Token::GreaterThanOrEquals)) => Op::GreaterThanOrEquals,
+                _ => break,
+            };
+
+            let (l_bp, r_bp) = Self::operator_bp(&op);
+
+            if l_bp < min_bp {
+                break;
+            }
+
+            self.lexer.next();
+
+            let rhs = dbg!(self.parse_bp(r_bp));
+
+            lhs = Node::inner(op, lhs, rhs);
+        }
+
+        lhs
+    }
+
+    fn operator_bp(op: &Op) -> (u8, u8) {
+        match op {
+            Op::Or => (1, 2),
+            Op::And => (3, 4),
+
+            Op::Equals => (4, 5),
+            Op::NotEquals => (4, 5),
+            Op::LessThan => (4, 5),
+            Op::GreaterThan => (4, 5),
+            Op::LessThanOrEquals => (4, 5),
+            Op::GreaterThanOrEquals => (4, 5),
+
+            Op::Plus => (6, 7),
+            Op::Minus => (6, 7),
+
+            Op::Multiply => (8, 9),
+            Op::Divide => (8, 9),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::parser::{Literal, Node, Op, Parser};
+
+    use super::lexer::Lexer;
+    use pretty_assertions::assert_eq;
+
+    #[test]
+    fn mininmal_expression_parser() {
+        let input = "1";
+        let lexer = Lexer::new(input);
+
+        let mut parser = Parser::new(lexer);
+
+        let parse_tree = parser.parse();
+
+        assert_eq!(parse_tree, Node::leaf(Literal::Integer(1)));
+    }
+
+    #[test]
+    fn expression_parser() {
+        let input = "1 + 2";
+        let lexer = Lexer::new(input);
+
+        let mut parser = Parser::new(lexer);
+
+        let parse_tree = parser.parse();
+
+        assert_eq!(
+            parse_tree,
+            Node::inner(
+                Op::Plus,
+                Node::leaf(Literal::Integer(1)),
+                Node::leaf(Literal::Integer(2))
+            )
+        );
+    }
+
+    #[test]
+    fn expression_parser_with_precedence() {
+        let input = "1 + 2 * 3";
+        let lexer = Lexer::new(input);
+
+        let mut parser = Parser::new(lexer);
+
+        let parse_tree = parser.parse();
+
+        assert_eq!(
+            parse_tree,
+            Node::inner(
+                Op::Plus,
+                Node::leaf(Literal::Integer(1)),
+                Node::inner(
+                    Op::Multiply,
+                    Node::leaf(Literal::Integer(2)),
+                    Node::leaf(Literal::Integer(3))
+                )
+            )
+        );
+    }
+
+    #[test]
+    fn parse_reverse() {
+        let input = "2 * 3 + 4";
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+
+        let parse_tree = parser.parse();
+
+        assert_eq!(
+            parse_tree,
+            Node::inner(
+                Op::Plus,
+                Node::inner(
+                    Op::Multiply,
+                    Node::leaf(Literal::Integer(2)),
+                    Node::leaf(Literal::Integer(3))
+                ),
+                Node::leaf(Literal::Integer(4))
+            )
+        );
+    }
+
+    #[test]
+    fn parse_more() {
+        let input = "1 + 2 * 3 * 4 + 5";
+
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+
+        let parse_tree = parser.parse();
+
+        assert_eq!(
+            parse_tree,
+            Node::inner(
+                Op::Plus,
+                Node::inner(
+                    Op::Plus,
+                    Node::leaf(Literal::Integer(1)),
+                    Node::inner(
+                        Op::Multiply,
+                        Node::inner(
+                            Op::Multiply,
+                            Node::leaf(Literal::Integer(2)),
+                            Node::leaf(Literal::Integer(3))
+                        ),
+                        Node::leaf(Literal::Integer(4))
+                    )
+                ),
+                Node::leaf(Literal::Integer(5))
+            )
+        );
+    }
+
+    #[test]
+    fn simple_where_expr() {
+        let input = "1 = 1";
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+
+        let parse_tree = parser.parse();
+
+        assert_eq!(
+            parse_tree,
+            Node::inner(
+                Op::Equals,
+                Node::leaf(Literal::Integer(1)),
+                Node::leaf(Literal::Integer(1))
+            )
+        );
+    }
+
+    #[test]
+    fn where_expr() {
+        let input = "1 = 1 and 2 >= 3 * 1 or 4 < 5 + 6";
+
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+
+        let parse_tree = parser.parse();
+
+        assert_eq!(
+            parse_tree,
+            Node::inner(
+                Op::Or,
+                Node::inner(
+                    Op::And,
+                    Node::inner(
+                        Op::Equals,
+                        Node::leaf(Literal::Integer(1)),
+                        Node::leaf(Literal::Integer(1))
+                    ),
+                    Node::inner(
+                        Op::GreaterThanOrEquals,
+                        Node::leaf(Literal::Integer(2)),
+                        Node::inner(
+                            Op::Multiply,
+                            Node::leaf(Literal::Integer(3)),
+                            Node::leaf(Literal::Integer(1))
+                        )
+                    )
+                ),
+                Node::inner(
+                    Op::LessThan,
+                    Node::leaf(Literal::Integer(4)),
+                    Node::inner(
+                        Op::Plus,
+                        Node::leaf(Literal::Integer(5)),
+                        Node::leaf(Literal::Integer(6))
+                    )
+                )
+            )
+        );
+    }
 }

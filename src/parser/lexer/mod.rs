@@ -1,4 +1,4 @@
-mod tokens;
+pub mod tokens;
 
 use tokens::Token;
 
@@ -13,12 +13,19 @@ pub struct Lexer<'a> {
     current_position: usize,
     is_finished: bool,
     cache: Option<char>,
+    peeked: Option<Result<Token<'a>, LexError>>,
 }
 
 impl<'a> Iterator for Lexer<'a> {
     type Item = Result<Token<'a>, LexError>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        if self.peeked.is_some() {
+            let peeked = self.peeked.clone();
+            self.peeked = None;
+            return peeked;
+        }
+
         let c = self.move_and_skip_whitespace()?;
 
         match c {
@@ -56,7 +63,19 @@ impl<'a> Lexer<'a> {
             current_position: 0,
             is_finished: false,
             cache: None,
+            peeked: None,
         }
+    }
+
+    pub fn peek(&mut self) -> Option<Result<Token<'a>, LexError>> {
+        if self.peeked.is_some() {
+            return self.peeked.clone();
+        }
+
+        let token = self.next();
+        self.peeked = token.clone();
+
+        token
     }
 
     fn get_next_and_increment(&mut self) -> Option<char> {
@@ -461,6 +480,22 @@ mod tests {
         let actual: Vec<Result<Token, LexError>> = lexer.collect();
 
         let expected = vec![Err(LexError::InvalidCharacter('*'))];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn simple_expr() {
+        let input = "1 + 2";
+        let lexer = Lexer::new(input);
+
+        let actual: Vec<Result<Token, LexError>> = lexer.collect();
+
+        let expected = vec![
+            Ok(Token::NumericLiteral("1".to_string())),
+            Ok(Token::Plus),
+            Ok(Token::NumericLiteral("2".to_string())),
+        ];
 
         assert_eq!(actual, expected);
     }
@@ -883,6 +918,62 @@ mod tests {
             Ok(Token::Semicolon),
         ];
 
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn peek() {
+        let input = "1 + 2";
+        let mut lexer = Lexer::new(input);
+
+        let actual = lexer.peek();
+        let expected = Some(Ok(Token::NumericLiteral("1".to_string())));
+        assert_eq!(actual, expected);
+
+        let actual = lexer.peek();
+        let expected = Some(Ok(Token::NumericLiteral("1".to_string())));
+        assert_eq!(actual, expected);
+
+        let actual = lexer.next();
+        let expected = Some(Ok(Token::NumericLiteral("1".to_string())));
+        assert_eq!(actual, expected);
+
+        let actual = lexer.peek();
+        let expected = Some(Ok(Token::Plus));
+        assert_eq!(actual, expected);
+
+        let actual = lexer.next();
+        let expected = Some(Ok(Token::Plus));
+        assert_eq!(actual, expected);
+
+        let actual = lexer.next();
+        let expected = Some(Ok(Token::NumericLiteral("2".to_string())));
+        assert_eq!(actual, expected);
+
+        let actual = lexer.next();
+        let expected = None;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn next_only() {
+        let input = "1 + 2";
+        let mut lexer = Lexer::new(input);
+
+        let actual = lexer.next();
+        let expected = Some(Ok(Token::NumericLiteral("1".to_string())));
+        assert_eq!(actual, expected);
+
+        let actual = lexer.next();
+        let expected = Some(Ok(Token::Plus));
+        assert_eq!(actual, expected);
+
+        let actual = lexer.next();
+        let expected = Some(Ok(Token::NumericLiteral("2".to_string())));
+        assert_eq!(actual, expected);
+
+        let actual = lexer.next();
+        let expected = None;
         assert_eq!(actual, expected);
     }
 }
