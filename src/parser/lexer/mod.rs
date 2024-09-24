@@ -22,31 +22,28 @@ impl<'a> Iterator for Lexer<'a> {
         let c = self.move_and_skip_whitespace()?;
 
         match c {
-            '*' => return Some(self.single(Token::Asterisk)),
-            ',' => return Some(self.single(Token::Comma)),
-            '=' => return Some(self.single(Token::Equals)),
-            '+' => return Some(self.single(Token::Plus)),
-            '%' => return Some(self.single(Token::Percent)),
-            '|' => return Some(self.single(Token::Concat)),
-            // may be part of longer token
-            '<' => return Some(self.may_be_longer(Token::LessThan)),
-            '-' => return Some(self.may_be_longer(Token::Minus)),
-            '>' => return Some(self.may_be_longer(Token::GreaterThan)),
-            '/' => return Some(self.may_be_longer(Token::Slash)),
-            '\'' => return Some(self.may_be_longer(Token::SingleQuote)),
-            '"' => return Some(self.may_be_longer(Token::DoubleQuote)),
+            '*' => self.single(Token::Asterisk),
+            ',' => self.single(Token::Comma),
+            '=' => self.single(Token::Equals),
+            '+' => self.single(Token::Plus),
+            '%' => self.single(Token::Percent),
+            '|' => self.single(Token::Concat),
+
+            '<' => self.may_be_longer(Token::LessThan),
+            '-' => self.may_be_longer(Token::Minus),
+            '>' => self.may_be_longer(Token::GreaterThan),
+            '/' => self.may_be_longer(Token::Slash),
+            '\'' => self.may_be_longer(Token::SingleQuote),
+            '"' => self.may_be_longer(Token::DoubleQuote),
+
             '(' => Some(Ok(Token::OpenParen)),
             ')' => Some(Ok(Token::CloseParen)),
             ';' => Some(Ok(Token::Semicolon)),
-            c => {
-                if c.is_alphabetic() {
-                    return Some(self.word_started());
-                } else if c.is_numeric() {
-                    return Some(self.numeric_started(false));
-                } else {
-                    return Some(Err(LexError::InvalidCharacter(c)));
-                }
-            }
+
+            c if c.is_alphabetic() => self.word_started(),
+            c if c.is_numeric() => self.numeric_started(false),
+
+            _ => Some(Err(LexError::InvalidCharacter(c))),
         }
     }
 }
@@ -80,16 +77,11 @@ impl<'a> Lexer<'a> {
         self.current_position - 1
     }
 
-    fn single(&mut self, token: Token<'a>) -> Result<Token<'a>, LexError> {
+    fn single(&mut self, token: Token<'a>) -> Option<Result<Token<'a>, LexError>> {
         match self.get_next_and_increment() {
-            Some(c) => {
-                if c.is_whitespace() {
-                    Ok(token)
-                } else {
-                    Err(LexError::InvalidCharacter(c))
-                }
-            }
-            None => Ok(token),
+            Some(c) if c.is_whitespace() => Some(Ok(token)),
+            Some(c) => Some(Err(LexError::InvalidCharacter(c))),
+            None => Some(Ok(token)),
         }
     }
 
@@ -105,246 +97,178 @@ impl<'a> Lexer<'a> {
                 return Some(c);
             }
         }
+
         None
     }
 
-    fn may_be_longer(&mut self, first: Token<'a>) -> Result<Token<'a>, LexError> {
-        match first {
-            Token::SingleQuote | Token::DoubleQuote => return self.quote_started(first),
-            _ => (),
+    fn may_be_longer(&mut self, first: Token<'a>) -> Option<Result<Token<'a>, LexError>> {
+        if first == Token::SingleQuote || first == Token::DoubleQuote {
+            return self.quote_started(first);
         }
 
         let second = self.get_next_and_increment();
 
         match first {
             Token::LessThan => match second {
-                Some('=') => Ok(Token::LessThanOrEquals),
-                Some('>') => Ok(Token::NotEquals),
-                Some(' ') => Ok(Token::LessThan),
-                Some(c) => Err(LexError::InvalidCharacter(c)),
-                None => Ok(Token::LessThan),
+                Some('=') => Some(Ok(Token::LessThanOrEquals)),
+                Some('>') => Some(Ok(Token::NotEquals)),
+                Some(' ') => Some(Ok(Token::LessThan)),
+
+                Some(c) => Some(Err(LexError::InvalidCharacter(c))),
+
+                None => Some(Ok(Token::LessThan)),
             },
             Token::GreaterThan => match second {
-                Some('=') => Ok(Token::GreaterThanOrEquals),
-                Some(' ') => Ok(Token::GreaterThan),
-                Some(c) => Err(LexError::InvalidCharacter(c)),
-                None => Ok(Token::GreaterThan),
+                Some('=') => Some(Ok(Token::GreaterThanOrEquals)),
+                Some(' ') => Some(Ok(Token::GreaterThan)),
+
+                Some(c) => Some(Err(LexError::InvalidCharacter(c))),
+
+                None => Some(Ok(Token::GreaterThan)),
             },
             Token::Slash => match second {
-                Some(' ') => Ok(Token::Slash),
+                Some(' ') => Some(Ok(Token::Slash)),
                 Some('*') => self.multi_line_comment_started(),
-                Some(c) => Err(LexError::InvalidCharacter(c)),
-                None => Ok(Token::Slash),
+
+                Some(c) => Some(Err(LexError::InvalidCharacter(c))),
+
+                None => Some(Ok(Token::Slash)),
             },
             Token::Minus => match second {
-                Some(' ') => Ok(Token::Minus),
-                Some('-') => return self.single_line_comment_started(),
-                Some(c) => {
-                    if c.is_numeric() {
-                        return self.numeric_started(true);
-                    }
+                Some(' ') => Some(Ok(Token::Minus)),
+                Some('-') => self.single_line_comment_started(),
 
-                    Err(LexError::InvalidCharacter(c))
-                }
-                None => Ok(Token::Minus),
+                Some(c) if c.is_numeric() => self.numeric_started(true),
+                Some(c) => Some(Err(LexError::InvalidCharacter(c))),
+
+                None => Some(Ok(Token::Minus)),
             },
-            _ => Err(LexError::InvalidCharacter(second.unwrap())),
+            _ => Some(Err(LexError::InvalidCharacter(second.unwrap()))),
         }
     }
 
-    fn word_started(&mut self) -> Result<Token<'a>, LexError> {
+    fn word_started(&mut self) -> Option<Result<Token<'a>, LexError>> {
         let started_position = self.get_last_token_end();
 
         let is_word = |c: Option<char>| -> bool {
-            match c {
-                Some(n) => n.is_alphabetic() || n.is_numeric() || n == '_',
-                _ => false,
+            if c.is_none() {
+                return false;
             }
+
+            let c = c.unwrap();
+
+            c.is_alphabetic() || c.is_numeric() || c == '_'
         };
 
         loop {
             let c = self.get_next_and_increment();
+
             if is_word(c) {
                 continue;
-            } else {
-                if c == Some('.') {
-                    return self.identifier_dot_started(started_position);
-                }
-                if c.is_none() {
-                    break;
-                }
+            }
 
-                // here c might be ')' or ',' or '('
-                if [')', ',', ';'].contains(&c.unwrap()) {
-                    self.cache(c);
-                }
+            if c == Some('.') {
+                return self.identifier_dot_started(started_position);
+            }
 
+            if c.is_none() {
                 break;
             }
+
+            if [')', ',', ';'].contains(&c.unwrap()) {
+                self.cache(c);
+            }
+
+            break;
         }
 
         let word = &self.input[started_position..self.get_last_token_end()];
 
-        let lower_case_word = word.to_lowercase();
+        let binding = dbg!(word.to_lowercase());
+        let lower_case_word = dbg!(binding.as_str());
 
-        if lower_case_word == "select" {
-            Ok(Token::Select)
-        } else if lower_case_word == "from" {
-            Ok(Token::From)
-        } else if lower_case_word == "where" {
-            Ok(Token::Where)
-        } else if lower_case_word == "insert" {
-            Ok(Token::Insert)
-        } else if lower_case_word == "into" {
-            Ok(Token::Into)
-        } else if lower_case_word == "values" {
-            Ok(Token::Values)
-        } else if lower_case_word == "update" {
-            Ok(Token::Update)
-        } else if lower_case_word == "set" {
-            Ok(Token::Set)
-        } else if lower_case_word == "delete" {
-            Ok(Token::Delete)
-        } else if lower_case_word == "create" {
-            Ok(Token::Create)
-        } else if lower_case_word == "table" {
-            Ok(Token::Table)
-        } else if lower_case_word == "primary" {
-            Ok(Token::Primary)
-        } else if lower_case_word == "key" {
-            Ok(Token::Key)
-        } else if lower_case_word == "foreign" {
-            Ok(Token::Foreign)
-        } else if lower_case_word == "references" {
-            Ok(Token::References)
-        } else if lower_case_word == "drop" {
-            Ok(Token::Drop)
-        } else if lower_case_word == "alter" {
-            Ok(Token::Alter)
-        } else if lower_case_word == "add" {
-            Ok(Token::Add)
-        } else if lower_case_word == "column" {
-            Ok(Token::Column)
-        } else if lower_case_word == "constraint" {
-            Ok(Token::Constraint)
-        } else if lower_case_word == "index" {
-            Ok(Token::Index)
-        } else if lower_case_word == "join" {
-            Ok(Token::Join)
-        } else if lower_case_word == "inner" {
-            Ok(Token::Inner)
-        } else if lower_case_word == "left" {
-            Ok(Token::Left)
-        } else if lower_case_word == "right" {
-            Ok(Token::Right)
-        } else if lower_case_word == "full" {
-            Ok(Token::Full)
-        } else if lower_case_word == "outer" {
-            Ok(Token::Outer)
-        } else if lower_case_word == "on" {
-            Ok(Token::On)
-        } else if lower_case_word == "group" {
-            Ok(Token::Group)
-        } else if lower_case_word == "by" {
-            Ok(Token::By)
-        } else if lower_case_word == "order" {
-            Ok(Token::Order)
-        } else if lower_case_word == "asc" {
-            Ok(Token::Asc)
-        } else if lower_case_word == "desc" {
-            Ok(Token::Desc)
-        } else if lower_case_word == "union" {
-            Ok(Token::Union)
-        } else if lower_case_word == "all" {
-            Ok(Token::All)
-        } else if lower_case_word == "distinct" {
-            Ok(Token::Distinct)
-        } else if lower_case_word == "limit" {
-            Ok(Token::Limit)
-        } else if lower_case_word == "offset" {
-            Ok(Token::Offset)
-        } else if lower_case_word == "having" {
-            Ok(Token::Having)
-        } else if lower_case_word == "as" {
-            Ok(Token::As)
-        } else if lower_case_word == "and" {
-            Ok(Token::And)
-        } else if lower_case_word == "or" {
-            Ok(Token::Or)
-        } else if lower_case_word == "not" {
-            Ok(Token::Not)
-        } else if lower_case_word == "null" {
-            Ok(Token::Null)
-        } else if lower_case_word == "is" {
-            Ok(Token::Is)
-        } else if lower_case_word == "in" {
-            Ok(Token::In)
-        } else if lower_case_word == "between" {
-            Ok(Token::Between)
-        } else if lower_case_word == "like" {
-            Ok(Token::Like)
-        } else if lower_case_word == "exists" {
-            Ok(Token::Exists)
-        } else if lower_case_word == "any" {
-            Ok(Token::Any)
-        } else if lower_case_word == "case" {
-            Ok(Token::Case)
-        } else if lower_case_word == "when" {
-            Ok(Token::When)
-        } else if lower_case_word == "then" {
-            Ok(Token::Then)
-        } else if lower_case_word == "else" {
-            Ok(Token::Else)
-        } else if lower_case_word == "end" {
-            Ok(Token::End)
-        } else if lower_case_word == "default" {
-            Ok(Token::Default)
-        } else if lower_case_word == "true" {
-            Ok(Token::BooleanLiteral(true))
-        } else if lower_case_word == "false" {
-            Ok(Token::BooleanLiteral(false))
-        } else if lower_case_word == "int" {
-            Ok(Token::Int)
-        } else if lower_case_word == "integer" {
-            Ok(Token::Integer)
-        } else if lower_case_word == "smallint" {
-            Ok(Token::SmallInt)
-        } else if lower_case_word == "tinyint" {
-            Ok(Token::TinyInt)
-        } else if lower_case_word == "bigint" {
-            Ok(Token::BigInt)
-        } else if lower_case_word == "float" {
-            Ok(Token::Float)
-        } else if lower_case_word == "real" {
-            Ok(Token::Real)
-        } else if lower_case_word == "double" {
-            Ok(Token::Double)
-        } else if lower_case_word == "decimal" {
-            Ok(Token::Decimal)
-        } else if lower_case_word == "numeric" {
-            Ok(Token::Numeric)
-        } else if lower_case_word == "varchar" {
-            Ok(Token::VarChar)
-        } else if lower_case_word == "char" {
-            Ok(Token::Char)
-        } else if lower_case_word == "text" {
-            Ok(Token::Text)
-        } else if lower_case_word == "date" {
-            Ok(Token::Date)
-        } else if lower_case_word == "time" {
-            Ok(Token::Time)
-        } else if lower_case_word == "timestamp" {
-            Ok(Token::Timestamp)
-        } else if lower_case_word == "datetime" {
-            Ok(Token::DateTime)
-        } else if lower_case_word == "boolean" {
-            Ok(Token::Boolean)
-        } else {
-            Ok(Token::identifier(word))
+        match lower_case_word {
+            "select" => Some(Ok(Token::Select)),
+            "from" => Some(Ok(Token::From)),
+            "where" => Some(Ok(Token::Where)),
+            "insert" => Some(Ok(Token::Insert)),
+            "into" => Some(Ok(Token::Into)),
+            "values" => Some(Ok(Token::Values)),
+            "update" => Some(Ok(Token::Update)),
+            "set" => Some(Ok(Token::Set)),
+            "delete" => Some(Ok(Token::Delete)),
+            "create" => Some(Ok(Token::Create)),
+            "table" => Some(Ok(Token::Table)),
+            "primary" => Some(Ok(Token::Primary)),
+            "key" => Some(Ok(Token::Key)),
+            "foreign" => Some(Ok(Token::Foreign)),
+            "references" => Some(Ok(Token::References)),
+            "drop" => Some(Ok(Token::Drop)),
+            "alter" => Some(Ok(Token::Alter)),
+            "add" => Some(Ok(Token::Add)),
+            "column" => Some(Ok(Token::Column)),
+            "constraint" => Some(Ok(Token::Constraint)),
+            "index" => Some(Ok(Token::Index)),
+            "join" => Some(Ok(Token::Join)),
+            "inner" => Some(Ok(Token::Inner)),
+            "left" => Some(Ok(Token::Left)),
+            "right" => Some(Ok(Token::Right)),
+            "full" => Some(Ok(Token::Full)),
+            "outer" => Some(Ok(Token::Outer)),
+            "on" => Some(Ok(Token::On)),
+            "group" => Some(Ok(Token::Group)),
+            "by" => Some(Ok(Token::By)),
+            "order" => Some(Ok(Token::Order)),
+            "asc" => Some(Ok(Token::Asc)),
+            "desc" => Some(Ok(Token::Desc)),
+            "union" => Some(Ok(Token::Union)),
+            "all" => Some(Ok(Token::All)),
+            "distinct" => Some(Ok(Token::Distinct)),
+            "limit" => Some(Ok(Token::Limit)),
+            "offset" => Some(Ok(Token::Offset)),
+            "having" => Some(Ok(Token::Having)),
+            "as" => Some(Ok(Token::As)),
+            "and" => Some(Ok(Token::And)),
+            "or" => Some(Ok(Token::Or)),
+            "not" => Some(Ok(Token::Not)),
+            "null" => Some(Ok(Token::Null)),
+            "is" => Some(Ok(Token::Is)),
+            "in" => Some(Ok(Token::In)),
+            "between" => Some(Ok(Token::Between)),
+            "like" => Some(Ok(Token::Like)),
+            "exists" => Some(Ok(Token::Exists)),
+            "any" => Some(Ok(Token::Any)),
+            "case" => Some(Ok(Token::Case)),
+            "when" => Some(Ok(Token::When)),
+            "then" => Some(Ok(Token::Then)),
+            "else" => Some(Ok(Token::Else)),
+            "end" => Some(Ok(Token::End)),
+            "default" => Some(Ok(Token::Default)),
+            "true" => Some(Ok(Token::BooleanLiteral(true))),
+            "false" => Some(Ok(Token::BooleanLiteral(false))),
+            "int" => Some(Ok(Token::Int)),
+            "integer" => Some(Ok(Token::Integer)),
+            "smallint" => Some(Ok(Token::SmallInt)),
+            "tinyint" => Some(Ok(Token::TinyInt)),
+            "bigint" => Some(Ok(Token::BigInt)),
+            "float" => Some(Ok(Token::Float)),
+            "real" => Some(Ok(Token::Real)),
+            "double" => Some(Ok(Token::Double)),
+            "decimal" => Some(Ok(Token::Decimal)),
+            "numeric" => Some(Ok(Token::Numeric)),
+            "varchar" => Some(Ok(Token::VarChar)),
+            "char" => Some(Ok(Token::Char)),
+            "text" => Some(Ok(Token::Text)),
+            "date" => Some(Ok(Token::Date)),
+            "time" => Some(Ok(Token::Time)),
+            "timestamp" => Some(Ok(Token::Timestamp)),
+            "datetime" => Some(Ok(Token::DateTime)),
+            "boolean" => Some(Ok(Token::Boolean)),
+            _ => Some(Ok(Token::identifier(word))),
         }
     }
 
-    fn quote_started(&mut self, quote: Token<'a>) -> Result<Token<'a>, LexError> {
+    fn quote_started(&mut self, quote: Token<'a>) -> Option<Result<Token<'a>, LexError>> {
         let same_quote = |c: Option<char>| -> bool {
             match c {
                 Some('\'') => quote == Token::SingleQuote,
@@ -365,10 +289,10 @@ impl<'a> Lexer<'a> {
 
         let literal = &self.input[started_position..self.get_last_token_end()];
 
-        return Ok(Token::StringLiteral(literal.to_string()));
+        return Some(Ok(Token::StringLiteral(literal.to_string())));
     }
 
-    fn numeric_started(&mut self, has_sign: bool) -> Result<Token<'a>, LexError> {
+    fn numeric_started(&mut self, has_sign: bool) -> Option<Result<Token<'a>, LexError>> {
         let is_numeric = |c: Option<char>| -> bool {
             match c {
                 Some(n) => n.is_numeric(),
@@ -384,7 +308,7 @@ impl<'a> Lexer<'a> {
                 continue;
             } else if c == Some('.') {
                 if seen_dot {
-                    return Err(LexError::InvalidCharacter('.'));
+                    return Some(Err(LexError::InvalidCharacter('.')));
                 }
                 seen_dot = true;
                 continue;
@@ -395,14 +319,16 @@ impl<'a> Lexer<'a> {
 
         let literal = &self.input[started_position..self.get_last_token_end()];
 
-        return Ok(Token::NumericLiteral(if has_sign {
+        let string_representation = if has_sign {
             format!("-{}", literal)
         } else {
             literal.to_string()
-        }));
+        };
+
+        return Some(Ok(Token::NumericLiteral(string_representation)));
     }
 
-    fn single_line_comment_started(&mut self) -> Result<Token<'a>, LexError> {
+    fn single_line_comment_started(&mut self) -> Option<Result<Token<'a>, LexError>> {
         let started_position = self.current_position;
         loop {
             let c = self.get_next_and_increment();
@@ -413,10 +339,10 @@ impl<'a> Lexer<'a> {
 
         let comment = &self.input[started_position..self.get_last_token_end()];
 
-        return Ok(Token::SingleLineComment(comment.to_string()));
+        return Some(Ok(Token::SingleLineComment(comment.to_string())));
     }
 
-    fn multi_line_comment_started(&mut self) -> Result<Token<'a>, LexError> {
+    fn multi_line_comment_started(&mut self) -> Option<Result<Token<'a>, LexError>> {
         let started_position = self.current_position;
         loop {
             let c = self.get_next_and_increment();
@@ -430,10 +356,13 @@ impl<'a> Lexer<'a> {
 
         let comment = &self.input[started_position..self.current_position - 2];
 
-        return Ok(Token::MultiLineComment(comment.to_string()));
+        return Some(Ok(Token::MultiLineComment(comment.to_string())));
     }
 
-    fn identifier_dot_started(&mut self, started_position: usize) -> Result<Token<'a>, LexError> {
+    fn identifier_dot_started(
+        &mut self,
+        started_position: usize,
+    ) -> Option<Result<Token<'a>, LexError>> {
         let first_dot_position = self.current_position;
         let mut second_dot_position = 0;
         let mut third_dot_position = 0;
@@ -465,7 +394,7 @@ impl<'a> Lexer<'a> {
         }
 
         if third_dot_position > 0 {
-            return Err(LexError::InvalidCharacter('.'));
+            return Some(Err(LexError::InvalidCharacter('.')));
         }
 
         let first_name = &self.input[started_position..first_dot_position - 1];
@@ -481,11 +410,11 @@ impl<'a> Lexer<'a> {
             None
         };
 
-        Ok(Token::Identifier {
+        Some(Ok(Token::Identifier {
             first_name,
             second_name: Some(second_name),
             third_name,
-        })
+        }))
     }
 
     fn cache(&mut self, c: Option<char>) {

@@ -1,6 +1,5 @@
 #[derive(Debug, PartialEq, Clone)]
 pub enum Token<'a> {
-    // Keywords
     Select,
     From,
     Where,
@@ -58,7 +57,6 @@ pub enum Token<'a> {
     End,
     Default,
 
-    // Data Types
     Int,
     Integer,
     SmallInt,
@@ -78,7 +76,6 @@ pub enum Token<'a> {
     Timestamp,
     Boolean,
 
-    // Symbols and Operators
     Asterisk,
     Comma,
     Semicolon,
@@ -98,7 +95,6 @@ pub enum Token<'a> {
     SingleQuote,
     DoubleQuote,
 
-    // Identifiers and Literals
     Identifier {
         first_name: &'a str,
         second_name: Option<&'a str>,
