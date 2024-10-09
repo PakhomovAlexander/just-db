@@ -197,10 +197,16 @@ struct ColumnIdentifier {
 
 #[derive(Debug, PartialEq)]
 pub enum Literal {
-    Integer(i32),
+    Numeric(i32),
     String(String),
     Float(f32),
     Boolean(bool),
+}
+
+impl Literal {
+    fn numeric(i: String) -> Literal {
+        Literal::Numeric(i.parse().unwrap())
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -213,6 +219,8 @@ struct Function {
 pub enum Node {
     Leaf(Literal),
     Inner(Op, Box<Node>, Box<Node>),
+    Prefix(Op, Box<Node>),
+    Postfix(Op, Box<Node>),
 }
 
 pub struct Parser<'a> {
@@ -220,6 +228,14 @@ pub struct Parser<'a> {
 }
 
 impl Node {
+    fn prefix(op: Op, node: Node) -> Node {
+        Node::Prefix(op, Box::new(node))
+    }
+
+    fn postfix(op: Op, node: Node) -> Node {
+        Node::Postfix(op, Box::new(node))
+    }
+
     fn inner(op: Op, left: Node, right: Node) -> Node {
         Node::Inner(op, Box::new(left), Box::new(right))
     }
@@ -245,6 +261,8 @@ pub enum Op {
     GreaterThan,
     LessThanOrEquals,
     GreaterThanOrEquals,
+    Not,
+    CloseParen,
 }
 
 impl<'a> Parser<'a> {
@@ -256,9 +274,29 @@ impl<'a> Parser<'a> {
         dbg!(self.parse_bp(0))
     }
 
+    // (1 + 2) * 3
     fn parse_bp(&mut self, min_bp: u8) -> Node {
+        dbg!("REQ");
+        dbg!(min_bp, self.lexer.peek());
         let mut lhs = match self.lexer.next() {
-            Some(Ok(Token::NumericLiteral(i))) => Node::leaf(Literal::Integer(i.parse().unwrap())),
+            Some(Ok(Token::NumericLiteral(i))) => Node::leaf(Literal::numeric(i)),
+            Some(Ok(Token::Not)) => {
+                let ((), r_bp) = Self::prefix_operator_bp(&Op::Not);
+                let rhs = self.parse_bp(r_bp);
+                Node::prefix(Op::Not, rhs)
+            }
+            Some(Ok(Token::OpenParen)) => {
+                dbg!("OpenParen found");
+                let lhs = self.parse_bp(0);
+
+                match self.lexer.next() {
+                    Some(Ok(Token::CloseParen)) => {
+                        dbg!("CloseParen found");
+                        lhs
+                    }
+                    s => panic!("Unexpected token: {:?}", s),
+                }
+            }
             s => panic!("Unexpected token: {:?}", s),
         };
 
@@ -276,42 +314,70 @@ impl<'a> Parser<'a> {
                 Some(Ok(Token::GreaterThan)) => Op::GreaterThan,
                 Some(Ok(Token::LessThanOrEquals)) => Op::LessThanOrEquals,
                 Some(Ok(Token::GreaterThanOrEquals)) => Op::GreaterThanOrEquals,
+                Some(Ok(Token::CloseParen)) => Op::CloseParen,
                 _ => break,
             };
 
-            let (l_bp, r_bp) = Self::operator_bp(&op);
+            dbg!(&op);
 
-            if l_bp < min_bp {
-                break;
+            // postfix bp
+            if let Some((l_bp, ())) = Self::postfix_operator_bp(&op) {
+                // operate with postfix
+                continue;
             }
 
-            self.lexer.next();
+            if let Some((l_bp, r_bp)) = Self::infix_operator_bp(&op) {
+                if l_bp < min_bp {
+                    break;
+                }
+                self.lexer.next();
 
-            let rhs = dbg!(self.parse_bp(r_bp));
+                let rhs = self.parse_bp(r_bp);
 
-            lhs = Node::inner(op, lhs, rhs);
+                lhs = Node::inner(op, lhs, rhs);
+
+                continue;
+            }
+
+            break;
         }
 
         lhs
     }
 
-    fn operator_bp(op: &Op) -> (u8, u8) {
+    fn prefix_operator_bp(op: &Op) -> ((), u8) {
         match op {
-            Op::Or => (1, 2),
-            Op::And => (3, 4),
+            Op::Not => ((), 7),
+            _ => panic!("Unexpected prefix operator: {:?}", op),
+        }
+    }
 
-            Op::Equals => (4, 5),
-            Op::NotEquals => (4, 5),
-            Op::LessThan => (4, 5),
-            Op::GreaterThan => (4, 5),
-            Op::LessThanOrEquals => (4, 5),
-            Op::GreaterThanOrEquals => (4, 5),
+    fn postfix_operator_bp(op: &Op) -> Option<(u8, ())> {
+        match op {
+            _ => None,
+        }
+    }
+    fn infix_operator_bp(op: &Op) -> Option<(u8, u8)> {
+        match op {
+            Op::Or => Some((1, 2)),
+            Op::And => Some((3, 4)),
 
-            Op::Plus => (6, 7),
-            Op::Minus => (6, 7),
+            Op::Equals => Some((4, 5)),
+            Op::NotEquals => Some((4, 5)),
+            Op::LessThan => Some((4, 5)),
+            Op::GreaterThan => Some((4, 5)),
+            Op::LessThanOrEquals => Some((4, 5)),
+            Op::GreaterThanOrEquals => Some((4, 5)),
 
-            Op::Multiply => (8, 9),
-            Op::Divide => (8, 9),
+            Op::Plus => Some((6, 7)),
+            Op::Minus => Some((6, 7)),
+
+            Op::Multiply => Some((8, 9)),
+            Op::Divide => Some((8, 9)),
+
+            Op::CloseParen => None,
+
+            _ => panic!("Unexpected infix operator: {:?}", op),
         }
     }
 }
@@ -332,7 +398,7 @@ mod tests {
 
         let parse_tree = parser.parse();
 
-        assert_eq!(parse_tree, Node::leaf(Literal::Integer(1)));
+        assert_eq!(parse_tree, Node::leaf(Literal::Numeric(1)));
     }
 
     #[test]
@@ -348,8 +414,8 @@ mod tests {
             parse_tree,
             Node::inner(
                 Op::Plus,
-                Node::leaf(Literal::Integer(1)),
-                Node::leaf(Literal::Integer(2))
+                Node::leaf(Literal::Numeric(1)),
+                Node::leaf(Literal::Numeric(2))
             )
         );
     }
@@ -367,11 +433,11 @@ mod tests {
             parse_tree,
             Node::inner(
                 Op::Plus,
-                Node::leaf(Literal::Integer(1)),
+                Node::leaf(Literal::Numeric(1)),
                 Node::inner(
                     Op::Multiply,
-                    Node::leaf(Literal::Integer(2)),
-                    Node::leaf(Literal::Integer(3))
+                    Node::leaf(Literal::Numeric(2)),
+                    Node::leaf(Literal::Numeric(3))
                 )
             )
         );
@@ -391,10 +457,10 @@ mod tests {
                 Op::Plus,
                 Node::inner(
                     Op::Multiply,
-                    Node::leaf(Literal::Integer(2)),
-                    Node::leaf(Literal::Integer(3))
+                    Node::leaf(Literal::Numeric(2)),
+                    Node::leaf(Literal::Numeric(3))
                 ),
-                Node::leaf(Literal::Integer(4))
+                Node::leaf(Literal::Numeric(4))
             )
         );
     }
@@ -414,18 +480,18 @@ mod tests {
                 Op::Plus,
                 Node::inner(
                     Op::Plus,
-                    Node::leaf(Literal::Integer(1)),
+                    Node::leaf(Literal::Numeric(1)),
                     Node::inner(
                         Op::Multiply,
                         Node::inner(
                             Op::Multiply,
-                            Node::leaf(Literal::Integer(2)),
-                            Node::leaf(Literal::Integer(3))
+                            Node::leaf(Literal::Numeric(2)),
+                            Node::leaf(Literal::Numeric(3))
                         ),
-                        Node::leaf(Literal::Integer(4))
+                        Node::leaf(Literal::Numeric(4))
                     )
                 ),
-                Node::leaf(Literal::Integer(5))
+                Node::leaf(Literal::Numeric(5))
             )
         );
     }
@@ -442,8 +508,8 @@ mod tests {
             parse_tree,
             Node::inner(
                 Op::Equals,
-                Node::leaf(Literal::Integer(1)),
-                Node::leaf(Literal::Integer(1))
+                Node::leaf(Literal::Numeric(1)),
+                Node::leaf(Literal::Numeric(1))
             )
         );
     }
@@ -465,26 +531,123 @@ mod tests {
                     Op::And,
                     Node::inner(
                         Op::Equals,
-                        Node::leaf(Literal::Integer(1)),
-                        Node::leaf(Literal::Integer(1))
+                        Node::leaf(Literal::Numeric(1)),
+                        Node::leaf(Literal::Numeric(1))
                     ),
                     Node::inner(
                         Op::GreaterThanOrEquals,
-                        Node::leaf(Literal::Integer(2)),
+                        Node::leaf(Literal::Numeric(2)),
                         Node::inner(
                             Op::Multiply,
-                            Node::leaf(Literal::Integer(3)),
-                            Node::leaf(Literal::Integer(1))
+                            Node::leaf(Literal::Numeric(3)),
+                            Node::leaf(Literal::Numeric(1))
                         )
                     )
                 ),
                 Node::inner(
                     Op::LessThan,
-                    Node::leaf(Literal::Integer(4)),
+                    Node::leaf(Literal::Numeric(4)),
                     Node::inner(
                         Op::Plus,
-                        Node::leaf(Literal::Integer(5)),
-                        Node::leaf(Literal::Integer(6))
+                        Node::leaf(Literal::Numeric(5)),
+                        Node::leaf(Literal::Numeric(6))
+                    )
+                )
+            )
+        );
+    }
+
+    #[test]
+    fn prefix_operator_not() {
+        let input = "not 1 = 1";
+
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+
+        let parse_tree = parser.parse();
+
+        assert_eq!(
+            parse_tree,
+            Node::inner(
+                Op::Equals,
+                Node::prefix(Op::Not, Node::leaf(Literal::Numeric(1))),
+                Node::leaf(Literal::Numeric(1))
+            )
+        );
+    }
+
+    #[test]
+    fn where_expr_with_parentheses() {
+        let input = "(1 + 2) * 3";
+
+        let lexer = Lexer::new(input);
+
+        let mut parser = Parser::new(lexer);
+
+        let parse_tree = parser.parse();
+
+        assert_eq!(
+            parse_tree,
+            Node::inner(
+                Op::Multiply,
+                Node::inner(
+                    Op::Plus,
+                    Node::leaf(Literal::Numeric(1)),
+                    Node::leaf(Literal::Numeric(2))
+                ),
+                Node::leaf(Literal::Numeric(3))
+            )
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn postfix_function_call() {
+        let input = "func(1, 2)";
+
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+
+        let _ = parser.parse();
+    }
+
+    #[test]
+    fn where_expr_with_parentheses_2() {
+        let input = "(1 = 1 and 2 >= 3) * 1 or 4 < 5 + 6";
+
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+
+        let parse_tree = parser.parse();
+
+        assert_eq!(
+            parse_tree,
+            Node::inner(
+                Op::Or,
+                Node::inner(
+                    Op::Multiply,
+                    Node::inner(
+                        Op::And,
+                        Node::inner(
+                            Op::Equals,
+                            Node::leaf(Literal::Numeric(1)),
+                            Node::leaf(Literal::Numeric(1))
+                        ),
+                        Node::inner(
+                            Op::GreaterThanOrEquals,
+                            Node::leaf(Literal::Numeric(2)),
+                            Node::leaf(Literal::Numeric(3))
+                        )
+                    ),
+                    Node::leaf(Literal::Numeric(1))
+                ),
+                Node::inner(
+                    Op::LessThan,
+                    Node::leaf(Literal::Numeric(4)),
+                    Node::inner(
+                        Op::Plus,
+                        Node::leaf(Literal::Numeric(5)),
+                        Node::leaf(Literal::Numeric(6))
                     )
                 )
             )

@@ -331,6 +331,11 @@ impl<'a> Lexer<'a> {
                 }
                 seen_dot = true;
                 continue;
+            } else if c.is_none() {
+                break;
+            } else if [')', ',', ';'].contains(&c.unwrap()) {
+                self.cache(c);
+                break;
             } else {
                 break;
             }
@@ -818,6 +823,68 @@ mod tests {
             Ok(Token::BooleanLiteral(false)),
             Ok(Token::CloseParen),
             Ok(Token::And),
+        ];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn open_paren() {
+        let input = "(column5 = -456.789 or column7 = false)";
+        let lexer = Lexer::new(input);
+
+        let actual: Vec<Result<Token, LexError>> = lexer.collect();
+
+        let expected = vec![
+            Ok(Token::OpenParen),
+            Ok(Token::identifier("column5")),
+            Ok(Token::Equals),
+            Ok(Token::NumericLiteral("-456.789".to_string())),
+            Ok(Token::Or),
+            Ok(Token::identifier("column7")),
+            Ok(Token::Equals),
+            Ok(Token::BooleanLiteral(false)),
+            Ok(Token::CloseParen),
+        ];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn paren_22() {
+        let input = "(1 + 222) * 3";
+
+        let lexer = Lexer::new(input);
+        let actual: Vec<Result<Token, LexError>> = lexer.collect();
+
+        let expected = vec![
+            Ok(Token::OpenParen),
+            Ok(Token::NumericLiteral("1".to_string())),
+            Ok(Token::Plus),
+            Ok(Token::NumericLiteral("222".to_string())),
+            Ok(Token::CloseParen),
+            Ok(Token::Asterisk),
+            Ok(Token::NumericLiteral("3".to_string())),
+        ];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn paren_2() {
+        let input = "(1 + 2) * 3";
+
+        let lexer = Lexer::new(input);
+        let actual: Vec<Result<Token, LexError>> = lexer.collect();
+
+        let expected = vec![
+            Ok(Token::OpenParen),
+            Ok(Token::NumericLiteral("1".to_string())),
+            Ok(Token::Plus),
+            Ok(Token::NumericLiteral("2".to_string())),
+            Ok(Token::CloseParen),
+            Ok(Token::Asterisk),
+            Ok(Token::NumericLiteral("3".to_string())),
         ];
 
         assert_eq!(actual, expected);
