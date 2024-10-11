@@ -199,6 +199,11 @@ struct ColumnIdentifier {
 pub enum Literal {
     Numeric(i32),
     String(String),
+    Identifier {
+        first_name: String,
+        second_name: Option<String>,
+        third_name: Option<String>,
+    },
     Float(f32),
     Boolean(bool),
 }
@@ -207,6 +212,44 @@ impl Literal {
     fn numeric(i: String) -> Literal {
         Literal::Numeric(i.parse().unwrap())
     }
+
+    fn identifier(identifier: &str) -> Literal {
+        let parts: Vec<&str> = identifier.split('.').collect();
+
+        match parts.len() {
+            1 => Literal::Identifier {
+                first_name: parts[0].to_string(),
+                second_name: None,
+                third_name: None,
+            },
+            2 => Literal::Identifier {
+                first_name: parts[0].to_string(),
+                second_name: Some(parts[1].to_string()),
+                third_name: None,
+            },
+            3 => Literal::Identifier {
+                first_name: parts[0].to_string(),
+                second_name: Some(parts[1].to_string()),
+                third_name: Some(parts[2].to_string()),
+            },
+            _ => panic!("Invalid identifier: {}", identifier),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct ColumnList {
+    columns: Vec<ColumnStatement>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct TableList {
+    tables: Vec<TableStatement>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Where {
+    conditions: Vec<Condition>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -218,9 +261,13 @@ struct Function {
 #[derive(Debug, PartialEq)]
 pub enum Node {
     Leaf(Literal),
+
     Inner(Op, Box<Node>, Box<Node>),
     Prefix(Op, Box<Node>),
     Postfix(Op, Box<Node>),
+
+    Select(Box<Node>, Option<Box<Node>>),
+    From(Box<Node>),
 }
 
 pub struct Parser<'a> {
@@ -243,6 +290,20 @@ impl Node {
     fn leaf(literal: Literal) -> Node {
         Node::Leaf(literal)
     }
+
+    fn select(column_nodes: Node, from_node: Option<Node>) -> Node {
+        match from_node {
+            Some(Node::From(_)) => {}
+            None => {}
+            _ => panic!("Expected From node"),
+        }
+
+        Node::Select(Box::new(column_nodes), from_node.map(Box::new))
+    }
+
+    fn from(node: Node) -> Node {
+        Node::From(Box::new(node))
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -263,6 +324,7 @@ pub enum Op {
     GreaterThanOrEquals,
     Not,
     CloseParen,
+    Comma,
 }
 
 impl<'a> Parser<'a> {
@@ -271,29 +333,45 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse(&mut self) -> Node {
-        dbg!(self.parse_bp(0))
+        self.parse_bp(0)
     }
 
-    // (1 + 2) * 3
+    // select col1,
     fn parse_bp(&mut self, min_bp: u8) -> Node {
-        dbg!("REQ");
-        dbg!(min_bp, self.lexer.peek());
         let mut lhs = match self.lexer.next() {
             Some(Ok(Token::NumericLiteral(i))) => Node::leaf(Literal::numeric(i)),
+            Some(Ok(Token::Identifier {
+                first_name,
+                second_name: None,
+                third_name: None,
+            })) => Node::leaf(Literal::Identifier {
+                first_name: first_name.to_string(),
+                second_name: None,
+                third_name: None,
+            }),
             Some(Ok(Token::Not)) => {
                 let ((), r_bp) = Self::prefix_operator_bp(&Op::Not);
                 let rhs = self.parse_bp(r_bp);
                 Node::prefix(Op::Not, rhs)
             }
             Some(Ok(Token::OpenParen)) => {
-                dbg!("OpenParen found");
                 let lhs = self.parse_bp(0);
 
                 match self.lexer.next() {
-                    Some(Ok(Token::CloseParen)) => {
-                        dbg!("CloseParen found");
-                        lhs
+                    Some(Ok(Token::CloseParen)) => lhs,
+                    s => panic!("Unexpected token: {:?}", s),
+                }
+            }
+            Some(Ok(Token::Select)) => {
+                let rhs = self.parse_bp(0);
+
+                match self.lexer.next() {
+                    Some(Ok(Token::From)) => {
+                        let rhs1 = self.parse_bp(0);
+
+                        Node::select(rhs, Some(Node::from(rhs1)))
                     }
+                    None => Node::select(rhs, None),
                     s => panic!("Unexpected token: {:?}", s),
                 }
             }
@@ -315,10 +393,9 @@ impl<'a> Parser<'a> {
                 Some(Ok(Token::LessThanOrEquals)) => Op::LessThanOrEquals,
                 Some(Ok(Token::GreaterThanOrEquals)) => Op::GreaterThanOrEquals,
                 Some(Ok(Token::CloseParen)) => Op::CloseParen,
+                Some(Ok(Token::Comma)) => Op::Comma,
                 _ => break,
             };
-
-            dbg!(&op);
 
             // postfix bp
             if let Some((l_bp, ())) = Self::postfix_operator_bp(&op) {
@@ -357,6 +434,7 @@ impl<'a> Parser<'a> {
             _ => None,
         }
     }
+
     fn infix_operator_bp(op: &Op) -> Option<(u8, u8)> {
         match op {
             Op::Or => Some((1, 2)),
@@ -369,6 +447,7 @@ impl<'a> Parser<'a> {
             Op::LessThanOrEquals => Some((4, 5)),
             Op::GreaterThanOrEquals => Some((4, 5)),
 
+            Op::Comma => Some((4, 5)),
             Op::Plus => Some((6, 7)),
             Op::Minus => Some((6, 7)),
 
@@ -384,7 +463,7 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::parser::{Literal, Node, Op, Parser};
+    use crate::parser::{ColumnStatement, Literal, Node, Op, Parser};
 
     use super::lexer::Lexer;
     use pretty_assertions::assert_eq;
@@ -650,6 +729,97 @@ mod tests {
                         Node::leaf(Literal::Numeric(6))
                     )
                 )
+            )
+        );
+    }
+
+    #[test]
+    fn select_query_without_from() {
+        let input = "select 1";
+        let lexer = Lexer::new(input);
+
+        let mut parser = Parser::new(lexer);
+
+        let parse_tree = parser.parse();
+
+        assert_eq!(
+            parse_tree,
+            Node::select(Node::leaf(Literal::Numeric(1)), None)
+        );
+    }
+
+    #[test]
+    fn select_query_with_from() {
+        let input = "select 1 from table1";
+        let lexer = Lexer::new(input);
+
+        let mut parser = Parser::new(lexer);
+
+        let parse_tree = parser.parse();
+
+        assert_eq!(
+            parse_tree,
+            Node::select(
+                Node::leaf(Literal::Numeric(1)),
+                Some(Node::from(Node::leaf(Literal::identifier("table1"))))
+            )
+        );
+    }
+
+    #[test]
+    fn select_query_many_columns() {
+        let input = "select col1, col2 from table1";
+
+        let lexer = Lexer::new(input);
+
+        let mut parser = Parser::new(lexer);
+
+        let parse_tree = parser.parse();
+
+        assert_eq!(
+            parse_tree,
+            Node::select(
+                Node::inner(
+                    Op::Comma,
+                    Node::leaf(Literal::identifier("col1")),
+                    Node::leaf(Literal::identifier("col2"))
+                ),
+                Some(Node::from(Node::leaf(Literal::identifier("table1"))))
+            )
+        );
+    }
+
+    #[test]
+    fn select_query_many_commas() {
+        let input = "select col1, col2, 1 + 1 from table1, table2";
+
+        let lexer = Lexer::new(input);
+
+        let mut parser = Parser::new(lexer);
+
+        let parse_tree = parser.parse();
+
+        assert_eq!(
+            parse_tree,
+            Node::select(
+                Node::inner(
+                    Op::Comma,
+                    Node::inner(
+                        Op::Comma,
+                        Node::leaf(Literal::identifier("col1")),
+                        Node::leaf(Literal::identifier("col2"))
+                    ),
+                    Node::inner(
+                        Op::Plus,
+                        Node::leaf(Literal::Numeric(1)),
+                        Node::leaf(Literal::Numeric(1))
+                    )
+                ),
+                Some(Node::from(Node::inner(
+                    Op::Comma,
+                    Node::leaf(Literal::identifier("table1")),
+                    Node::leaf(Literal::identifier("table2"))
+                )))
             )
         );
     }
