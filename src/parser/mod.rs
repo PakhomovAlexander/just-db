@@ -262,48 +262,13 @@ struct Function {
 pub enum Node {
     Leaf(Literal),
 
-    Inner(Op, Box<Node>, Box<Node>),
-    Prefix(Op, Box<Node>),
-    Postfix(Op, Box<Node>),
-
-    Select(Box<Node>, Option<Box<Node>>),
-    From(Box<Node>),
+    Infix(Op, Vec<Node>),
+    Prefix(Op, Vec<Node>),
+    Postfix(Op, Vec<Node>),
 }
 
 pub struct Parser<'a> {
     lexer: lexer::Lexer<'a>,
-}
-
-impl Node {
-    fn prefix(op: Op, node: Node) -> Node {
-        Node::Prefix(op, Box::new(node))
-    }
-
-    fn postfix(op: Op, node: Node) -> Node {
-        Node::Postfix(op, Box::new(node))
-    }
-
-    fn inner(op: Op, left: Node, right: Node) -> Node {
-        Node::Inner(op, Box::new(left), Box::new(right))
-    }
-
-    fn leaf(literal: Literal) -> Node {
-        Node::Leaf(literal)
-    }
-
-    fn select(column_nodes: Node, from_node: Option<Node>) -> Node {
-        match from_node {
-            Some(Node::From(_)) => {}
-            None => {}
-            _ => panic!("Expected From node"),
-        }
-
-        Node::Select(Box::new(column_nodes), from_node.map(Box::new))
-    }
-
-    fn from(node: Node) -> Node {
-        Node::From(Box::new(node))
-    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -325,6 +290,9 @@ pub enum Op {
     Not,
     CloseParen,
     Comma,
+
+    Select,
+    From,
 }
 
 impl<'a> Parser<'a> {
@@ -339,12 +307,12 @@ impl<'a> Parser<'a> {
     // select col1,
     fn parse_bp(&mut self, min_bp: u8) -> Node {
         let mut lhs = match self.lexer.next() {
-            Some(Ok(Token::NumericLiteral(i))) => Node::leaf(Literal::numeric(i)),
+            Some(Ok(Token::NumericLiteral(i))) => Node::Leaf(Literal::numeric(i)),
             Some(Ok(Token::Identifier {
                 first_name,
                 second_name: None,
                 third_name: None,
-            })) => Node::leaf(Literal::Identifier {
+            })) => Node::Leaf(Literal::Identifier {
                 first_name: first_name.to_string(),
                 second_name: None,
                 third_name: None,
@@ -352,7 +320,7 @@ impl<'a> Parser<'a> {
             Some(Ok(Token::Not)) => {
                 let ((), r_bp) = Self::prefix_operator_bp(&Op::Not);
                 let rhs = self.parse_bp(r_bp);
-                Node::prefix(Op::Not, rhs)
+                Node::Prefix(Op::Not, vec![rhs])
             }
             Some(Ok(Token::OpenParen)) => {
                 let lhs = self.parse_bp(0);
@@ -369,9 +337,10 @@ impl<'a> Parser<'a> {
                     Some(Ok(Token::From)) => {
                         let rhs1 = self.parse_bp(0);
 
-                        Node::select(rhs, Some(Node::from(rhs1)))
+                        // TODO: select operator should not be a parent of from operator
+                        Node::Prefix(Op::Select, vec![rhs, Node::Prefix(Op::From, vec![rhs1])])
                     }
-                    None => Node::select(rhs, None),
+                    None => Node::Prefix(Op::Select, vec![rhs]),
                     s => panic!("Unexpected token: {:?}", s),
                 }
             }
@@ -411,7 +380,7 @@ impl<'a> Parser<'a> {
 
                 let rhs = self.parse_bp(r_bp);
 
-                lhs = Node::inner(op, lhs, rhs);
+                lhs = Node::Infix(op, vec![lhs, rhs]);
 
                 continue;
             }
@@ -477,7 +446,7 @@ mod tests {
 
         let parse_tree = parser.parse();
 
-        assert_eq!(parse_tree, Node::leaf(Literal::Numeric(1)));
+        assert_eq!(parse_tree, Node::Leaf(Literal::Numeric(1)));
     }
 
     #[test]
@@ -491,10 +460,12 @@ mod tests {
 
         assert_eq!(
             parse_tree,
-            Node::inner(
+            Node::Infix(
                 Op::Plus,
-                Node::leaf(Literal::Numeric(1)),
-                Node::leaf(Literal::Numeric(2))
+                vec![
+                    Node::Leaf(Literal::Numeric(1)),
+                    Node::Leaf(Literal::Numeric(2))
+                ]
             )
         );
     }
@@ -510,14 +481,18 @@ mod tests {
 
         assert_eq!(
             parse_tree,
-            Node::inner(
+            Node::Infix(
                 Op::Plus,
-                Node::leaf(Literal::Numeric(1)),
-                Node::inner(
-                    Op::Multiply,
-                    Node::leaf(Literal::Numeric(2)),
-                    Node::leaf(Literal::Numeric(3))
-                )
+                vec![
+                    Node::Leaf(Literal::Numeric(1)),
+                    Node::Infix(
+                        Op::Multiply,
+                        vec![
+                            Node::Leaf(Literal::Numeric(2)),
+                            Node::Leaf(Literal::Numeric(3))
+                        ]
+                    )
+                ]
             )
         );
     }
@@ -532,14 +507,18 @@ mod tests {
 
         assert_eq!(
             parse_tree,
-            Node::inner(
+            Node::Infix(
                 Op::Plus,
-                Node::inner(
-                    Op::Multiply,
-                    Node::leaf(Literal::Numeric(2)),
-                    Node::leaf(Literal::Numeric(3))
-                ),
-                Node::leaf(Literal::Numeric(4))
+                vec![
+                    Node::Infix(
+                        Op::Multiply,
+                        vec![
+                            Node::Leaf(Literal::Numeric(2)),
+                            Node::Leaf(Literal::Numeric(3))
+                        ]
+                    ),
+                    Node::Leaf(Literal::Numeric(4))
+                ]
             )
         );
     }
@@ -555,22 +534,30 @@ mod tests {
 
         assert_eq!(
             parse_tree,
-            Node::inner(
+            Node::Infix(
                 Op::Plus,
-                Node::inner(
-                    Op::Plus,
-                    Node::leaf(Literal::Numeric(1)),
-                    Node::inner(
-                        Op::Multiply,
-                        Node::inner(
-                            Op::Multiply,
-                            Node::leaf(Literal::Numeric(2)),
-                            Node::leaf(Literal::Numeric(3))
-                        ),
-                        Node::leaf(Literal::Numeric(4))
-                    )
-                ),
-                Node::leaf(Literal::Numeric(5))
+                vec![
+                    Node::Infix(
+                        Op::Plus,
+                        vec![
+                            Node::Leaf(Literal::Numeric(1)),
+                            Node::Infix(
+                                Op::Multiply,
+                                vec![
+                                    Node::Infix(
+                                        Op::Multiply,
+                                        vec![
+                                            Node::Leaf(Literal::Numeric(2)),
+                                            Node::Leaf(Literal::Numeric(3))
+                                        ]
+                                    ),
+                                    Node::Leaf(Literal::Numeric(4))
+                                ]
+                            )
+                        ]
+                    ),
+                    Node::Leaf(Literal::Numeric(5))
+                ]
             )
         );
     }
@@ -585,10 +572,12 @@ mod tests {
 
         assert_eq!(
             parse_tree,
-            Node::inner(
+            Node::Infix(
                 Op::Equals,
-                Node::leaf(Literal::Numeric(1)),
-                Node::leaf(Literal::Numeric(1))
+                vec![
+                    Node::Leaf(Literal::Numeric(1)),
+                    Node::Leaf(Literal::Numeric(1))
+                ]
             )
         );
     }
@@ -604,34 +593,48 @@ mod tests {
 
         assert_eq!(
             parse_tree,
-            Node::inner(
+            Node::Infix(
                 Op::Or,
-                Node::inner(
-                    Op::And,
-                    Node::inner(
-                        Op::Equals,
-                        Node::leaf(Literal::Numeric(1)),
-                        Node::leaf(Literal::Numeric(1))
+                vec![
+                    Node::Infix(
+                        Op::And,
+                        vec![
+                            Node::Infix(
+                                Op::Equals,
+                                vec![
+                                    Node::Leaf(Literal::Numeric(1)),
+                                    Node::Leaf(Literal::Numeric(1))
+                                ]
+                            ),
+                            Node::Infix(
+                                Op::GreaterThanOrEquals,
+                                vec![
+                                    Node::Leaf(Literal::Numeric(2)),
+                                    Node::Infix(
+                                        Op::Multiply,
+                                        vec![
+                                            Node::Leaf(Literal::Numeric(3)),
+                                            Node::Leaf(Literal::Numeric(1))
+                                        ]
+                                    )
+                                ]
+                            )
+                        ]
                     ),
-                    Node::inner(
-                        Op::GreaterThanOrEquals,
-                        Node::leaf(Literal::Numeric(2)),
-                        Node::inner(
-                            Op::Multiply,
-                            Node::leaf(Literal::Numeric(3)),
-                            Node::leaf(Literal::Numeric(1))
-                        )
+                    Node::Infix(
+                        Op::LessThan,
+                        vec![
+                            Node::Leaf(Literal::Numeric(4)),
+                            Node::Infix(
+                                Op::Plus,
+                                vec![
+                                    Node::Leaf(Literal::Numeric(5)),
+                                    Node::Leaf(Literal::Numeric(6))
+                                ]
+                            )
+                        ]
                     )
-                ),
-                Node::inner(
-                    Op::LessThan,
-                    Node::leaf(Literal::Numeric(4)),
-                    Node::inner(
-                        Op::Plus,
-                        Node::leaf(Literal::Numeric(5)),
-                        Node::leaf(Literal::Numeric(6))
-                    )
-                )
+                ]
             )
         );
     }
@@ -647,10 +650,12 @@ mod tests {
 
         assert_eq!(
             parse_tree,
-            Node::inner(
+            Node::Infix(
                 Op::Equals,
-                Node::prefix(Op::Not, Node::leaf(Literal::Numeric(1))),
-                Node::leaf(Literal::Numeric(1))
+                vec![
+                    Node::Prefix(Op::Not, vec![Node::Leaf(Literal::Numeric(1))]),
+                    Node::Leaf(Literal::Numeric(1))
+                ]
             )
         );
     }
@@ -667,20 +672,25 @@ mod tests {
 
         assert_eq!(
             parse_tree,
-            Node::inner(
+            Node::Infix(
                 Op::Multiply,
-                Node::inner(
-                    Op::Plus,
-                    Node::leaf(Literal::Numeric(1)),
-                    Node::leaf(Literal::Numeric(2))
-                ),
-                Node::leaf(Literal::Numeric(3))
+                vec![
+                    Node::Infix(
+                        Op::Plus,
+                        vec![
+                            Node::Leaf(Literal::Numeric(1)),
+                            Node::Leaf(Literal::Numeric(2))
+                        ]
+                    ),
+                    Node::Leaf(Literal::Numeric(3))
+                ]
             )
         );
     }
 
     #[test]
     #[ignore]
+    // TODO: implement function call
     fn postfix_function_call() {
         let input = "func(1, 2)";
 
@@ -701,34 +711,48 @@ mod tests {
 
         assert_eq!(
             parse_tree,
-            Node::inner(
+            Node::Infix(
                 Op::Or,
-                Node::inner(
-                    Op::Multiply,
-                    Node::inner(
-                        Op::And,
-                        Node::inner(
-                            Op::Equals,
-                            Node::leaf(Literal::Numeric(1)),
-                            Node::leaf(Literal::Numeric(1))
-                        ),
-                        Node::inner(
-                            Op::GreaterThanOrEquals,
-                            Node::leaf(Literal::Numeric(2)),
-                            Node::leaf(Literal::Numeric(3))
-                        )
+                vec![
+                    Node::Infix(
+                        Op::Multiply,
+                        vec![
+                            Node::Infix(
+                                Op::And,
+                                vec![
+                                    Node::Infix(
+                                        Op::Equals,
+                                        vec![
+                                            Node::Leaf(Literal::Numeric(1)),
+                                            Node::Leaf(Literal::Numeric(1))
+                                        ]
+                                    ),
+                                    Node::Infix(
+                                        Op::GreaterThanOrEquals,
+                                        vec![
+                                            Node::Leaf(Literal::Numeric(2)),
+                                            Node::Leaf(Literal::Numeric(3))
+                                        ]
+                                    )
+                                ]
+                            ),
+                            Node::Leaf(Literal::Numeric(1))
+                        ]
                     ),
-                    Node::leaf(Literal::Numeric(1))
-                ),
-                Node::inner(
-                    Op::LessThan,
-                    Node::leaf(Literal::Numeric(4)),
-                    Node::inner(
-                        Op::Plus,
-                        Node::leaf(Literal::Numeric(5)),
-                        Node::leaf(Literal::Numeric(6))
+                    Node::Infix(
+                        Op::LessThan,
+                        vec![
+                            Node::Leaf(Literal::Numeric(4)),
+                            Node::Infix(
+                                Op::Plus,
+                                vec![
+                                    Node::Leaf(Literal::Numeric(5)),
+                                    Node::Leaf(Literal::Numeric(6))
+                                ]
+                            )
+                        ]
                     )
-                )
+                ]
             )
         );
     }
@@ -744,7 +768,7 @@ mod tests {
 
         assert_eq!(
             parse_tree,
-            Node::select(Node::leaf(Literal::Numeric(1)), None)
+            Node::Prefix(Op::Select, vec![Node::Leaf(Literal::Numeric(1))])
         );
     }
 
@@ -759,9 +783,12 @@ mod tests {
 
         assert_eq!(
             parse_tree,
-            Node::select(
-                Node::leaf(Literal::Numeric(1)),
-                Some(Node::from(Node::leaf(Literal::identifier("table1"))))
+            Node::Prefix(
+                Op::Select,
+                vec![
+                    Node::Leaf(Literal::Numeric(1)),
+                    Node::Prefix(Op::From, vec![Node::Leaf(Literal::identifier("table1"))])
+                ]
             )
         );
     }
@@ -778,13 +805,18 @@ mod tests {
 
         assert_eq!(
             parse_tree,
-            Node::select(
-                Node::inner(
-                    Op::Comma,
-                    Node::leaf(Literal::identifier("col1")),
-                    Node::leaf(Literal::identifier("col2"))
-                ),
-                Some(Node::from(Node::leaf(Literal::identifier("table1"))))
+            Node::Prefix(
+                Op::Select,
+                vec![
+                    Node::Infix(
+                        Op::Comma,
+                        vec![
+                            Node::Leaf(Literal::identifier("col1")),
+                            Node::Leaf(Literal::identifier("col2"))
+                        ]
+                    ),
+                    Node::Prefix(Op::From, vec![Node::Leaf(Literal::identifier("table1"))])
+                ]
             )
         );
     }
@@ -801,25 +833,31 @@ mod tests {
 
         assert_eq!(
             parse_tree,
-            Node::select(
-                Node::inner(
-                    Op::Comma,
-                    Node::inner(
+            Node::Prefix(
+                Op::Select,
+                vec![
+                    Node::Infix(
                         Op::Comma,
-                        Node::leaf(Literal::identifier("col1")),
-                        Node::leaf(Literal::identifier("col2"))
+                        vec![
+                            Node::Leaf(Literal::identifier("col1")),
+                            Node::Leaf(Literal::identifier("col2")),
+                            Node::Infix(
+                                Op::Plus,
+                                vec![
+                                    Node::Leaf(Literal::Numeric(1)),
+                                    Node::Leaf(Literal::Numeric(1))
+                                ]
+                            ),
+                        ]
                     ),
-                    Node::inner(
-                        Op::Plus,
-                        Node::leaf(Literal::Numeric(1)),
-                        Node::leaf(Literal::Numeric(1))
+                    Node::Prefix(
+                        Op::From,
+                        vec![
+                            Node::Leaf(Literal::identifier("table1")),
+                            Node::Leaf(Literal::identifier("table2"))
+                        ]
                     )
-                ),
-                Some(Node::from(Node::inner(
-                    Op::Comma,
-                    Node::leaf(Literal::identifier("table1")),
-                    Node::leaf(Literal::identifier("table2"))
-                )))
+                ]
             )
         );
     }
