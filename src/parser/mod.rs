@@ -839,23 +839,31 @@ mod tests {
                     Node::Infix(
                         Op::Comma,
                         vec![
-                            Node::Leaf(Literal::identifier("col1")),
-                            Node::Leaf(Literal::identifier("col2")),
+                            Node::Infix(
+                                Op::Comma,
+                                vec![
+                                    Node::Leaf(Literal::identifier("col1")),
+                                    Node::Leaf(Literal::identifier("col2"))
+                                ]
+                            ),
                             Node::Infix(
                                 Op::Plus,
                                 vec![
                                     Node::Leaf(Literal::Numeric(1)),
                                     Node::Leaf(Literal::Numeric(1))
                                 ]
-                            ),
+                            )
                         ]
                     ),
                     Node::Prefix(
                         Op::From,
-                        vec![
-                            Node::Leaf(Literal::identifier("table1")),
-                            Node::Leaf(Literal::identifier("table2"))
-                        ]
+                        vec![Node::Infix(
+                            Op::Comma,
+                            vec![
+                                Node::Leaf(Literal::identifier("table1")),
+                                Node::Leaf(Literal::identifier("table2"))
+                            ]
+                        )]
                     )
                 ]
             )
