@@ -696,4 +696,40 @@ mod tests {
             )
         );
     }
+
+    #[test]
+    fn select_query_with_where_and_and() {
+        let input = r"
+        select col1, col2, col3 
+        from table1, table2 
+        where (col1 = 1 or col2 = 2) and col3 >= 3";
+
+        assert_eq!(
+            parse(input),
+            prefix_chain(
+                Op::Select,
+                infix(
+                    Op::Comma,
+                    infix(Op::Comma, leaf(id("col1")), leaf(id("col2"))),
+                    leaf(id("col3"))
+                ),
+                prefix_chain(
+                    Op::From,
+                    infix(Op::Comma, leaf(id("table1")), leaf(id("table2"))),
+                    prefix(
+                        Op::Where,
+                        infix(
+                            Op::And,
+                            infix(
+                                Op::Or,
+                                infix(Op::Equals, leaf(id("col1")), leaf(num(1))),
+                                infix(Op::Equals, leaf(id("col2")), leaf(num(2)))
+                            ),
+                            infix(Op::GreaterThanOrEquals, leaf(id("col3")), leaf(num(3)))
+                        )
+                    )
+                )
+            )
+        );
+    }
 }
