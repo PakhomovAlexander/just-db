@@ -4,197 +4,6 @@ pub mod lexer;
 
 use lexer::tokens::Token;
 
-///
-/// TREE STRUCTURE
-///
-/// *Queries*:
-///  select col1, col2 from table1;
-///  insert into table1 (col1, col2) values (1, 'valStr');
-///  insert into table1 (col1) values (1);
-#[derive(Debug, PartialEq)]
-struct Queries {
-    queries: Vec<Query>,
-}
-
-#[derive(Debug, PartialEq)]
-enum Query {
-    // select ...
-    Select(SelectQuery),
-    // insert ...
-    Insert(InsertQuery),
-    // delete ...
-    Delete(DeleteQuery),
-    // update ...
-    Update(UpdateQuery),
-    // create table ...
-    CreateTable(CreateTableQuery),
-    // drop table ...
-    DropTable(DropTableQuery),
-    // alter table ... AlterTable(AlterTableQuery),
-}
-
-/// *SelectQuery*:
-///  select <select_statement>
-///  from <from_statement>
-///  where <where_statement>
-///  order by <order_by_statement>
-///  group by <group_by_statement>
-///  having <having_statement>
-///  limit <limit_statement>
-#[derive(Debug, PartialEq)]
-struct SelectQuery {
-    select_statement: SelectStatement,
-    from_statement: FromStatement,
-    where_statement: Option<WhereStatement>,
-    order_by_statement: Option<OrderByStatement>,
-    group_by_statement: Option<GroupByStatement>,
-    having_statement: Option<HavingStatement>,
-    limit_statement: Option<LimitStatement>,
-}
-
-/// *InsertQuery*:
-///  insert into <table_name> (<columns>) values (<values>)
-#[derive(Debug, PartialEq)]
-struct InsertQuery {
-    table_name: String,
-    columns: Vec<String>,
-    values: Vec<String>,
-}
-
-/// *DeleteQuery*:
-///  delete from <table_name> where <where_statement>
-#[derive(Debug, PartialEq)]
-struct DeleteQuery {
-    table_name: String,
-    where_statement: Option<WhereStatement>,
-}
-
-/// *UpdateQuery*:
-///  update <table_name> set <set_statement> where <where_statement>
-#[derive(Debug, PartialEq)]
-struct UpdateQuery {
-    table_name: String,
-    set_statement: SetStatement,
-    where_statement: Option<WhereStatement>,
-}
-
-/// *CreateTableQuery*:
-///  create table <table_name> (<columns_definitions>) <constraints>
-#[derive(Debug, PartialEq)]
-struct CreateTableQuery {
-    table_name: String,
-    // TODO: Design this
-    columns_definitions: Vec<String>,
-    // TODO: Design this
-    constraints: Vec<String>,
-}
-
-/// *DropTableQuery*:
-///  drop table <table_name>
-#[derive(Debug, PartialEq)]
-struct DropTableQuery {
-    table_name: String,
-}
-
-/// *AlterTableQuery*:
-///  alter table <table_name> <action>
-#[derive(Debug, PartialEq)]
-struct AlterTableQuery {
-    table_name: String,
-    // TODO: Design this
-    action: String,
-}
-
-#[derive(Debug, PartialEq)]
-struct SelectStatement {
-    columns: Vec<ColumnStatement>,
-    distinct: bool,
-}
-
-#[derive(Debug, PartialEq)]
-struct FromStatement {
-    tables: Vec<TableStatement>,
-    joins: Vec<JoinStatement>,
-}
-
-#[derive(Debug, PartialEq)]
-struct TableStatement {
-    table_name: String,
-    alias: Option<String>,
-}
-
-#[derive(Debug, PartialEq)]
-struct JoinStatement {
-    table: TableStatement,
-    // TODO: Design this
-    join_type: String,
-    on: Vec<Condition>,
-}
-
-#[derive(Debug, PartialEq)]
-struct Condition {
-    left: ColumnStatement,
-    operator: Operator,
-    right: ColumnStatement,
-}
-
-#[derive(Debug, PartialEq)]
-enum Operator {
-    Equal,
-    NotEqual,
-}
-
-#[derive(Debug, PartialEq)]
-struct WhereStatement {
-    conditions: Vec<Condition>,
-}
-
-#[derive(Debug, PartialEq)]
-struct OrderByStatement {
-    columns: Vec<ColumnStatement>,
-    order: Order,
-}
-
-#[derive(Debug, PartialEq)]
-enum Order {
-    Asc,
-    Desc,
-}
-
-#[derive(Debug, PartialEq)]
-struct LimitStatement {
-    limit: i32,
-}
-
-#[derive(Debug, PartialEq)]
-struct GroupByStatement {
-    columns: Vec<ColumnStatement>,
-}
-
-#[derive(Debug, PartialEq)]
-struct HavingStatement {
-    conditions: Vec<Condition>,
-}
-
-#[derive(Debug, PartialEq)]
-struct SetStatement {
-    // TODO: Design this
-    columns: Vec<String>,
-}
-
-#[derive(Debug, PartialEq)]
-enum ColumnStatement {
-    Identifier(ColumnIdentifier),
-    Literal(Literal),
-    Function(Function),
-}
-
-#[derive(Debug, PartialEq)]
-struct ColumnIdentifier {
-    table_name: Option<String>,
-    column_name: String,
-}
-
 #[derive(Debug, PartialEq)]
 pub enum Literal {
     Numeric(i32),
@@ -205,7 +14,14 @@ pub enum Literal {
         third_name: Option<String>,
     },
     Float(f32),
-    Boolean(bool),
+    Bool(bool),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Type {
+    Int,
+    String,
+    Bool,
 }
 
 impl Literal {
@@ -238,29 +54,9 @@ impl Literal {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct ColumnList {
-    columns: Vec<ColumnStatement>,
-}
-
-#[derive(Debug, PartialEq)]
-pub struct TableList {
-    tables: Vec<TableStatement>,
-}
-
-#[derive(Debug, PartialEq)]
-pub struct Where {
-    conditions: Vec<Condition>,
-}
-
-#[derive(Debug, PartialEq)]
-struct Function {
-    name: String,
-    arguments: Vec<ColumnStatement>,
-}
-
-#[derive(Debug, PartialEq)]
 pub enum Node {
     Leaf(Literal),
+    LeafType(Type),
 
     Infix(Op, Vec<Node>),
     Prefix(Op, Vec<Node>),
@@ -294,6 +90,10 @@ pub enum Op {
     Select,
     From,
     Where,
+
+    CreateTable,
+
+    ColumnDefinition,
 }
 
 impl<'a> Parser<'a> {
@@ -331,6 +131,7 @@ impl<'a> Parser<'a> {
                 }
             }
             Some(Ok(Token::Select)) => self.parse_select(min_bp),
+            Some(Ok(Token::Create)) => self.parse_create(min_bp),
             s => panic!("Unexpected token: {:?}", s),
         };
 
@@ -376,6 +177,71 @@ impl<'a> Parser<'a> {
         }
 
         lhs
+    }
+
+    fn parse_create(&mut self, min_bp: u8) -> Node {
+        match self.lexer.next() {
+            Some(Ok(Token::Table)) => self.parse_create_table(min_bp),
+            s => panic!("Unexpected token: {:?}", s),
+        }
+    }
+
+    fn parse_create_table(&mut self, _min_bp: u8) -> Node {
+        let lhs = match self.lexer.next() {
+            Some(Ok(Token::Identifier {
+                first_name,
+                second_name: None,
+                third_name: None,
+            })) => Literal::identifier(first_name),
+            s => panic!("Unexpected token: {:?}", s),
+        };
+
+        match self.lexer.next() {
+            Some(Ok(Token::OpenParen)) => {
+                let mut columns = vec![];
+
+                loop {
+                    let column_name = match self.lexer.next() {
+                        Some(Ok(Token::Identifier {
+                            first_name,
+                            second_name: None,
+                            third_name: None,
+                        })) => Literal::identifier(first_name),
+                        Some(Ok(Token::CloseParen)) => break,
+                        s => panic!("Unexpected token: {:?}", s),
+                    };
+
+                    match self.lexer.next() {
+                        Some(Ok(Token::Int)) => {
+                            columns.push(Node::Infix(
+                                Op::ColumnDefinition,
+                                vec![Node::Leaf(column_name), Node::LeafType(Type::Int)],
+                            ));
+                        }
+                        s => panic!("Unexpected token: {:?}", s),
+                    }
+
+                    match self.lexer.next() {
+                        Some(Ok(Token::Comma)) => continue,
+                        Some(Ok(Token::CloseParen)) => break,
+                        s => panic!("Unexpected token: {:?}", s),
+                    }
+                }
+
+                if columns.len() == 1 {
+                    Node::Prefix(
+                        Op::CreateTable,
+                        vec![Node::Leaf(lhs), columns.pop().unwrap()],
+                    )
+                } else {
+                    Node::Prefix(
+                        Op::CreateTable,
+                        vec![Node::Leaf(lhs), Node::Infix(Op::Comma, columns)],
+                    )
+                }
+            }
+            s => panic!("Unexpected token: {:?}", s),
+        }
     }
 
     fn parse_select(&mut self, min_bp: u8) -> Node {
@@ -450,7 +316,7 @@ impl<'a> Parser<'a> {
 mod tests {
     use crate::parser::{Literal, Node, Op, Parser};
 
-    use super::lexer::Lexer;
+    use super::{lexer::Lexer, Type};
     use pretty_assertions::assert_eq;
 
     fn id(identifier: &str) -> Literal {
@@ -463,6 +329,10 @@ mod tests {
 
     fn leaf(literal: Literal) -> Node {
         Node::Leaf(literal)
+    }
+
+    fn leaf_type(typ: Type) -> Node {
+        Node::LeafType(typ)
     }
 
     fn infix(op: Op, lhs: Node, rhs: Node) -> Node {
@@ -729,6 +599,45 @@ mod tests {
                         )
                     )
                 )
+            )
+        );
+    }
+
+    #[test]
+    fn create_table() {
+        let input = r"
+        create table table1 (
+            col1 int,
+            col2 int
+        )";
+
+        assert_eq!(
+            parse(input),
+            prefix_chain(
+                Op::CreateTable,
+                leaf(id("table1")),
+                infix(
+                    Op::Comma,
+                    infix(Op::ColumnDefinition, leaf(id("col1")), leaf_type(Type::Int)),
+                    infix(Op::ColumnDefinition, leaf(id("col2")), leaf_type(Type::Int))
+                )
+            )
+        );
+    }
+
+    #[test]
+    fn create_table_with_single_column() {
+        let input = r"
+        create table table1 (
+            col1 int
+        )";
+
+        assert_eq!(
+            dbg!(parse(input)),
+            prefix_chain(
+                Op::CreateTable,
+                leaf(id("table1")),
+                infix(Op::ColumnDefinition, leaf(id("col1")), leaf_type(Type::Int))
             )
         );
     }
