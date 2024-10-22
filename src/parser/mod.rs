@@ -293,6 +293,7 @@ pub enum Op {
 
     Select,
     From,
+    Where,
 }
 
 impl<'a> Parser<'a> {
@@ -304,7 +305,6 @@ impl<'a> Parser<'a> {
         self.parse_bp(0)
     }
 
-    // select col1,
     fn parse_bp(&mut self, min_bp: u8) -> Node {
         let mut lhs = match self.lexer.next() {
             Some(Ok(Token::NumericLiteral(i))) => Node::Leaf(Literal::numeric(i)),
@@ -330,20 +330,7 @@ impl<'a> Parser<'a> {
                     s => panic!("Unexpected token: {:?}", s),
                 }
             }
-            Some(Ok(Token::Select)) => {
-                let rhs = self.parse_bp(0);
-
-                match self.lexer.next() {
-                    Some(Ok(Token::From)) => {
-                        let rhs1 = self.parse_bp(0);
-
-                        // TODO: select operator should not be a parent of from operator
-                        Node::Prefix(Op::Select, vec![rhs, Node::Prefix(Op::From, vec![rhs1])])
-                    }
-                    None => Node::Prefix(Op::Select, vec![rhs]),
-                    s => panic!("Unexpected token: {:?}", s),
-                }
-            }
+            Some(Ok(Token::Select)) => self.parse_select(min_bp),
             s => panic!("Unexpected token: {:?}", s),
         };
 
@@ -391,6 +378,35 @@ impl<'a> Parser<'a> {
         lhs
     }
 
+    fn parse_select(&mut self, min_bp: u8) -> Node {
+        let rhs = self.parse_bp(0);
+
+        match self.lexer.next() {
+            Some(Ok(Token::From)) => Node::Prefix(Op::Select, vec![rhs, self.parse_from(min_bp)]),
+            None => Node::Prefix(Op::Select, vec![rhs]),
+            s => panic!("Unexpected token: {:?}", s),
+        }
+    }
+
+    fn parse_from(&mut self, min_bp: u8) -> Node {
+        let rhs = self.parse_bp(0);
+
+        match self.lexer.next() {
+            Some(Ok(Token::Where)) => Node::Prefix(Op::From, vec![rhs, self.parse_where(min_bp)]),
+            None => Node::Prefix(Op::From, vec![rhs]),
+            s => panic!("Unexpected token: {:?}", s),
+        }
+    }
+
+    fn parse_where(&mut self, _min_bp: u8) -> Node {
+        let rhs = self.parse_bp(0);
+
+        match self.lexer.next() {
+            None => Node::Prefix(Op::Where, vec![rhs]),
+            s => panic!("Unexpected token: {:?}", s),
+        }
+    }
+
     fn prefix_operator_bp(op: &Op) -> ((), u8) {
         match op {
             Op::Not => ((), 7),
@@ -432,7 +448,7 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::parser::{ColumnStatement, Literal, Node, Op, Parser};
+    use crate::parser::{Literal, Node, Op, Parser};
 
     use super::lexer::Lexer;
     use pretty_assertions::assert_eq;
@@ -831,6 +847,8 @@ mod tests {
 
         let parse_tree = parser.parse();
 
+        dbg!(&parse_tree);
+
         assert_eq!(
             parse_tree,
             Node::Prefix(
@@ -864,6 +882,43 @@ mod tests {
                                 Node::Leaf(Literal::identifier("table2"))
                             ]
                         )]
+                    )
+                ]
+            )
+        );
+    }
+
+    #[test]
+    fn select_query_with_where() {
+        let input = "select col1 from table1 where col1 = 1";
+
+        let lexer = Lexer::new(input);
+
+        let mut parser = Parser::new(lexer);
+
+        let parse_tree = parser.parse();
+
+        assert_eq!(
+            parse_tree,
+            Node::Prefix(
+                Op::Select,
+                vec![
+                    Node::Leaf(Literal::identifier("col1")),
+                    Node::Prefix(
+                        Op::From,
+                        vec![
+                            Node::Leaf(Literal::identifier("table1")),
+                            Node::Prefix(
+                                Op::Where,
+                                vec![Node::Infix(
+                                    Op::Equals,
+                                    vec![
+                                        Node::Leaf(Literal::identifier("col1")),
+                                        Node::Leaf(Literal::Numeric(1)),
+                                    ]
+                                )]
+                            )
+                        ]
                     )
                 ]
             )

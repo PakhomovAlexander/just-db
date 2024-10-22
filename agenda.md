@@ -6,8 +6,10 @@
 
 
 Today we are going to:
-- [ ] Minor refactoring
-- [ ] WHERE statement support
+- [x] WHERE statement support in parser
+- [ ] Function call support 
+- [ ] Maybe CREATE TABLE and DROP TABLE and INSERT INTO support
+
 
 
 
