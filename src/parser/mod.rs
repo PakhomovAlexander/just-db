@@ -453,253 +453,143 @@ mod tests {
     use super::lexer::Lexer;
     use pretty_assertions::assert_eq;
 
-    #[test]
-    fn mininmal_expression_parser() {
-        let input = "1";
-        let lexer = Lexer::new(input);
+    fn id(identifier: &str) -> Literal {
+        Literal::identifier(identifier)
+    }
 
+    fn num(i: i32) -> Literal {
+        Literal::Numeric(i)
+    }
+
+    fn leaf(literal: Literal) -> Node {
+        Node::Leaf(literal)
+    }
+
+    fn infix(op: Op, lhs: Node, rhs: Node) -> Node {
+        Node::Infix(op, vec![lhs, rhs])
+    }
+
+    fn prefix(op: Op, lhs: Node) -> Node {
+        Node::Prefix(op, vec![lhs])
+    }
+
+    fn prefix_chain(op: Op, lhs: Node, chain_node: Node) -> Node {
+        Node::Prefix(op, vec![lhs, chain_node])
+    }
+
+    fn postfix(op: Op, rhs: Node) -> Node {
+        Node::Postfix(op, vec![rhs])
+    }
+
+    fn parse(input: &str) -> Node {
+        let lexer = Lexer::new(input);
         let mut parser = Parser::new(lexer);
 
-        let parse_tree = parser.parse();
+        parser.parse()
+    }
 
-        assert_eq!(parse_tree, Node::Leaf(Literal::Numeric(1)));
+    #[test]
+    fn mininmal_expression_parser() {
+        assert_eq!(parse("1"), leaf(num(1)));
     }
 
     #[test]
     fn expression_parser() {
-        let input = "1 + 2";
-        let lexer = Lexer::new(input);
-
-        let mut parser = Parser::new(lexer);
-
-        let parse_tree = parser.parse();
-
-        assert_eq!(
-            parse_tree,
-            Node::Infix(
-                Op::Plus,
-                vec![
-                    Node::Leaf(Literal::Numeric(1)),
-                    Node::Leaf(Literal::Numeric(2))
-                ]
-            )
-        );
+        assert_eq!(parse("1 + 2"), infix(Op::Plus, leaf(num(1)), leaf(num(2))));
     }
 
     #[test]
     fn expression_parser_with_precedence() {
-        let input = "1 + 2 * 3";
-        let lexer = Lexer::new(input);
-
-        let mut parser = Parser::new(lexer);
-
-        let parse_tree = parser.parse();
-
         assert_eq!(
-            parse_tree,
-            Node::Infix(
+            parse("1 + 2 * 3"),
+            infix(
                 Op::Plus,
-                vec![
-                    Node::Leaf(Literal::Numeric(1)),
-                    Node::Infix(
-                        Op::Multiply,
-                        vec![
-                            Node::Leaf(Literal::Numeric(2)),
-                            Node::Leaf(Literal::Numeric(3))
-                        ]
-                    )
-                ]
+                leaf(num(1)),
+                infix(Op::Multiply, leaf(num(2)), leaf(num(3)))
             )
         );
     }
 
     #[test]
     fn parse_reverse() {
-        let input = "2 * 3 + 4";
-        let lexer = Lexer::new(input);
-        let mut parser = Parser::new(lexer);
-
-        let parse_tree = parser.parse();
-
         assert_eq!(
-            parse_tree,
-            Node::Infix(
+            parse("2 * 3 + 4"),
+            infix(
                 Op::Plus,
-                vec![
-                    Node::Infix(
-                        Op::Multiply,
-                        vec![
-                            Node::Leaf(Literal::Numeric(2)),
-                            Node::Leaf(Literal::Numeric(3))
-                        ]
-                    ),
-                    Node::Leaf(Literal::Numeric(4))
-                ]
+                infix(Op::Multiply, leaf(num(2)), leaf(num(3))),
+                leaf(num(4))
             )
         );
     }
 
     #[test]
     fn parse_more() {
-        let input = "1 + 2 * 3 * 4 + 5";
-
-        let lexer = Lexer::new(input);
-        let mut parser = Parser::new(lexer);
-
-        let parse_tree = parser.parse();
-
         assert_eq!(
-            parse_tree,
-            Node::Infix(
+            parse("1 + 2 * 3 * 4 + 5"),
+            infix(
                 Op::Plus,
-                vec![
-                    Node::Infix(
-                        Op::Plus,
-                        vec![
-                            Node::Leaf(Literal::Numeric(1)),
-                            Node::Infix(
-                                Op::Multiply,
-                                vec![
-                                    Node::Infix(
-                                        Op::Multiply,
-                                        vec![
-                                            Node::Leaf(Literal::Numeric(2)),
-                                            Node::Leaf(Literal::Numeric(3))
-                                        ]
-                                    ),
-                                    Node::Leaf(Literal::Numeric(4))
-                                ]
-                            )
-                        ]
-                    ),
-                    Node::Leaf(Literal::Numeric(5))
-                ]
+                infix(
+                    Op::Plus,
+                    leaf(num(1)),
+                    infix(
+                        Op::Multiply,
+                        infix(Op::Multiply, leaf(num(2)), leaf(num(3))),
+                        leaf(num(4))
+                    )
+                ),
+                leaf(num(5))
             )
         );
     }
 
     #[test]
     fn simple_where_expr() {
-        let input = "1 = 1";
-        let lexer = Lexer::new(input);
-        let mut parser = Parser::new(lexer);
-
-        let parse_tree = parser.parse();
-
         assert_eq!(
-            parse_tree,
-            Node::Infix(
-                Op::Equals,
-                vec![
-                    Node::Leaf(Literal::Numeric(1)),
-                    Node::Leaf(Literal::Numeric(1))
-                ]
-            )
+            parse("1 = 1"),
+            infix(Op::Equals, leaf(num(1)), leaf(num(1)))
         );
     }
 
     #[test]
     fn where_expr() {
-        let input = "1 = 1 and 2 >= 3 * 1 or 4 < 5 + 6";
-
-        let lexer = Lexer::new(input);
-        let mut parser = Parser::new(lexer);
-
-        let parse_tree = parser.parse();
-
         assert_eq!(
-            parse_tree,
-            Node::Infix(
+            parse("1 = 1 and 2 >= 3 * 1 or 4 < 5 + 6"),
+            infix(
                 Op::Or,
-                vec![
-                    Node::Infix(
-                        Op::And,
-                        vec![
-                            Node::Infix(
-                                Op::Equals,
-                                vec![
-                                    Node::Leaf(Literal::Numeric(1)),
-                                    Node::Leaf(Literal::Numeric(1))
-                                ]
-                            ),
-                            Node::Infix(
-                                Op::GreaterThanOrEquals,
-                                vec![
-                                    Node::Leaf(Literal::Numeric(2)),
-                                    Node::Infix(
-                                        Op::Multiply,
-                                        vec![
-                                            Node::Leaf(Literal::Numeric(3)),
-                                            Node::Leaf(Literal::Numeric(1))
-                                        ]
-                                    )
-                                ]
-                            )
-                        ]
-                    ),
-                    Node::Infix(
-                        Op::LessThan,
-                        vec![
-                            Node::Leaf(Literal::Numeric(4)),
-                            Node::Infix(
-                                Op::Plus,
-                                vec![
-                                    Node::Leaf(Literal::Numeric(5)),
-                                    Node::Leaf(Literal::Numeric(6))
-                                ]
-                            )
-                        ]
+                infix(
+                    Op::And,
+                    infix(Op::Equals, leaf(num(1)), leaf(num(1))),
+                    infix(
+                        Op::GreaterThanOrEquals,
+                        leaf(num(2)),
+                        infix(Op::Multiply, leaf(num(3)), leaf(num(1)))
                     )
-                ]
+                ),
+                infix(
+                    Op::LessThan,
+                    leaf(num(4)),
+                    infix(Op::Plus, leaf(num(5)), leaf(num(6)))
+                )
             )
         );
     }
 
     #[test]
     fn prefix_operator_not() {
-        let input = "not 1 = 1";
-
-        let lexer = Lexer::new(input);
-        let mut parser = Parser::new(lexer);
-
-        let parse_tree = parser.parse();
-
         assert_eq!(
-            parse_tree,
-            Node::Infix(
-                Op::Equals,
-                vec![
-                    Node::Prefix(Op::Not, vec![Node::Leaf(Literal::Numeric(1))]),
-                    Node::Leaf(Literal::Numeric(1))
-                ]
-            )
+            parse("not 1 = 1"),
+            infix(Op::Equals, prefix(Op::Not, leaf(num(1))), leaf(num(1)))
         );
     }
 
     #[test]
     fn where_expr_with_parentheses() {
-        let input = "(1 + 2) * 3";
-
-        let lexer = Lexer::new(input);
-
-        let mut parser = Parser::new(lexer);
-
-        let parse_tree = parser.parse();
-
         assert_eq!(
-            parse_tree,
-            Node::Infix(
+            parse("(1 + 2) * 3"),
+            infix(
                 Op::Multiply,
-                vec![
-                    Node::Infix(
-                        Op::Plus,
-                        vec![
-                            Node::Leaf(Literal::Numeric(1)),
-                            Node::Leaf(Literal::Numeric(2))
-                        ]
-                    ),
-                    Node::Leaf(Literal::Numeric(3))
-                ]
+                infix(Op::Plus, leaf(num(1)), leaf(num(2))),
+                leaf(num(3))
             )
         );
     }
@@ -718,209 +608,91 @@ mod tests {
 
     #[test]
     fn where_expr_with_parentheses_2() {
-        let input = "(1 = 1 and 2 >= 3) * 1 or 4 < 5 + 6";
-
-        let lexer = Lexer::new(input);
-        let mut parser = Parser::new(lexer);
-
-        let parse_tree = parser.parse();
-
         assert_eq!(
-            parse_tree,
-            Node::Infix(
+            parse("(1 = 1 and 2 >= 3) * 1 or 4 < 5 + 6"),
+            infix(
                 Op::Or,
-                vec![
-                    Node::Infix(
-                        Op::Multiply,
-                        vec![
-                            Node::Infix(
-                                Op::And,
-                                vec![
-                                    Node::Infix(
-                                        Op::Equals,
-                                        vec![
-                                            Node::Leaf(Literal::Numeric(1)),
-                                            Node::Leaf(Literal::Numeric(1))
-                                        ]
-                                    ),
-                                    Node::Infix(
-                                        Op::GreaterThanOrEquals,
-                                        vec![
-                                            Node::Leaf(Literal::Numeric(2)),
-                                            Node::Leaf(Literal::Numeric(3))
-                                        ]
-                                    )
-                                ]
-                            ),
-                            Node::Leaf(Literal::Numeric(1))
-                        ]
+                infix(
+                    Op::Multiply,
+                    infix(
+                        Op::And,
+                        infix(Op::Equals, leaf(num(1)), leaf(num(1))),
+                        infix(Op::GreaterThanOrEquals, leaf(num(2)), leaf(num(3)))
                     ),
-                    Node::Infix(
-                        Op::LessThan,
-                        vec![
-                            Node::Leaf(Literal::Numeric(4)),
-                            Node::Infix(
-                                Op::Plus,
-                                vec![
-                                    Node::Leaf(Literal::Numeric(5)),
-                                    Node::Leaf(Literal::Numeric(6))
-                                ]
-                            )
-                        ]
-                    )
-                ]
+                    leaf(num(1))
+                ),
+                infix(
+                    Op::LessThan,
+                    leaf(num(4)),
+                    infix(Op::Plus, leaf(num(5)), leaf(num(6)))
+                )
             )
         );
     }
 
     #[test]
     fn select_query_without_from() {
-        let input = "select 1";
-        let lexer = Lexer::new(input);
-
-        let mut parser = Parser::new(lexer);
-
-        let parse_tree = parser.parse();
-
-        assert_eq!(
-            parse_tree,
-            Node::Prefix(Op::Select, vec![Node::Leaf(Literal::Numeric(1))])
-        );
+        assert_eq!(parse("select 1"), prefix(Op::Select, leaf(num(1))));
     }
 
     #[test]
     fn select_query_with_from() {
-        let input = "select 1 from table1";
-        let lexer = Lexer::new(input);
-
-        let mut parser = Parser::new(lexer);
-
-        let parse_tree = parser.parse();
-
         assert_eq!(
-            parse_tree,
-            Node::Prefix(
+            parse("select 1 from table1"),
+            prefix_chain(
                 Op::Select,
-                vec![
-                    Node::Leaf(Literal::Numeric(1)),
-                    Node::Prefix(Op::From, vec![Node::Leaf(Literal::identifier("table1"))])
-                ]
+                leaf(num(1)),
+                prefix(Op::From, leaf(id("table1")))
             )
         );
     }
 
     #[test]
     fn select_query_many_columns() {
-        let input = "select col1, col2 from table1";
-
-        let lexer = Lexer::new(input);
-
-        let mut parser = Parser::new(lexer);
-
-        let parse_tree = parser.parse();
-
         assert_eq!(
-            parse_tree,
-            Node::Prefix(
+            parse("select col1, col2 from table1"),
+            prefix_chain(
                 Op::Select,
-                vec![
-                    Node::Infix(
-                        Op::Comma,
-                        vec![
-                            Node::Leaf(Literal::identifier("col1")),
-                            Node::Leaf(Literal::identifier("col2"))
-                        ]
-                    ),
-                    Node::Prefix(Op::From, vec![Node::Leaf(Literal::identifier("table1"))])
-                ]
+                infix(Op::Comma, leaf(id("col1")), leaf(id("col2"))),
+                prefix(Op::From, leaf(id("table1")))
             )
         );
     }
 
     #[test]
     fn select_query_many_commas() {
-        let input = "select col1, col2, 1 + 1 from table1, table2";
-
-        let lexer = Lexer::new(input);
-
-        let mut parser = Parser::new(lexer);
-
-        let parse_tree = parser.parse();
-
-        dbg!(&parse_tree);
-
         assert_eq!(
-            parse_tree,
-            Node::Prefix(
+            parse("select col1, col2, 1 + 1 from table1, table2"),
+            prefix_chain(
                 Op::Select,
-                vec![
-                    Node::Infix(
-                        Op::Comma,
-                        vec![
-                            Node::Infix(
-                                Op::Comma,
-                                vec![
-                                    Node::Leaf(Literal::identifier("col1")),
-                                    Node::Leaf(Literal::identifier("col2"))
-                                ]
-                            ),
-                            Node::Infix(
-                                Op::Plus,
-                                vec![
-                                    Node::Leaf(Literal::Numeric(1)),
-                                    Node::Leaf(Literal::Numeric(1))
-                                ]
-                            )
-                        ]
-                    ),
-                    Node::Prefix(
-                        Op::From,
-                        vec![Node::Infix(
-                            Op::Comma,
-                            vec![
-                                Node::Leaf(Literal::identifier("table1")),
-                                Node::Leaf(Literal::identifier("table2"))
-                            ]
-                        )]
-                    )
-                ]
+                infix(
+                    Op::Comma,
+                    infix(Op::Comma, leaf(id("col1")), leaf(id("col2"))),
+                    infix(Op::Plus, leaf(num(1)), leaf(num(1)))
+                ),
+                prefix(
+                    Op::From,
+                    infix(Op::Comma, leaf(id("table1")), leaf(id("table2")))
+                )
             )
         );
     }
 
     #[test]
     fn select_query_with_where() {
-        let input = "select col1 from table1 where col1 = 1";
-
-        let lexer = Lexer::new(input);
-
-        let mut parser = Parser::new(lexer);
-
-        let parse_tree = parser.parse();
-
         assert_eq!(
-            parse_tree,
-            Node::Prefix(
+            parse("select col1 from table1 where col1 = 1"),
+            prefix_chain(
                 Op::Select,
-                vec![
-                    Node::Leaf(Literal::identifier("col1")),
-                    Node::Prefix(
-                        Op::From,
-                        vec![
-                            Node::Leaf(Literal::identifier("table1")),
-                            Node::Prefix(
-                                Op::Where,
-                                vec![Node::Infix(
-                                    Op::Equals,
-                                    vec![
-                                        Node::Leaf(Literal::identifier("col1")),
-                                        Node::Leaf(Literal::Numeric(1)),
-                                    ]
-                                )]
-                            )
-                        ]
+                leaf(id("col1")),
+                prefix_chain(
+                    Op::From,
+                    leaf(id("table1")),
+                    prefix(
+                        Op::Where,
+                        infix(Op::Equals, leaf(id("col1")), leaf(num(1)),)
                     )
-                ]
+                )
             )
         );
     }
