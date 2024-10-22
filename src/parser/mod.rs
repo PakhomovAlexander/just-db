@@ -339,6 +339,10 @@ mod tests {
         Node::Infix(op, vec![lhs, rhs])
     }
 
+    fn infix_vec(op: Op, nodes: Vec<Node>) -> Node {
+        Node::Infix(op, nodes)
+    }
+
     fn prefix(op: Op, lhs: Node) -> Node {
         Node::Prefix(op, vec![lhs])
     }
@@ -604,7 +608,24 @@ mod tests {
     }
 
     #[test]
-    fn create_table() {
+    fn create_table_with_single_column() {
+        let input = r"
+        create table table1 (
+            col1 int
+        )";
+
+        assert_eq!(
+            dbg!(parse(input)),
+            prefix_chain(
+                Op::CreateTable,
+                leaf(id("table1")),
+                infix(Op::ColumnDefinition, leaf(id("col1")), leaf_type(Type::Int))
+            )
+        );
+    }
+
+    #[test]
+    fn create_table_two_columns() {
         let input = r"
         create table table1 (
             col1 int,
@@ -626,18 +647,27 @@ mod tests {
     }
 
     #[test]
-    fn create_table_with_single_column() {
+    fn create_table_three_columns() {
         let input = r"
         create table table1 (
-            col1 int
+            col1 int,
+            col2 int,
+            col3 int
         )";
 
         assert_eq!(
-            dbg!(parse(input)),
+            parse(input),
             prefix_chain(
                 Op::CreateTable,
                 leaf(id("table1")),
-                infix(Op::ColumnDefinition, leaf(id("col1")), leaf_type(Type::Int))
+                infix_vec(
+                    Op::Comma,
+                    vec![
+                        infix(Op::ColumnDefinition, leaf(id("col1")), leaf_type(Type::Int)),
+                        infix(Op::ColumnDefinition, leaf(id("col2")), leaf_type(Type::Int)),
+                        infix(Op::ColumnDefinition, leaf(id("col3")), leaf_type(Type::Int))
+                    ]
+                )
             )
         );
     }
