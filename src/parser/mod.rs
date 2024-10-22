@@ -92,6 +92,7 @@ pub enum Op {
     Where,
 
     CreateTable,
+    DropTable,
 
     ColumnDefinition,
 }
@@ -132,6 +133,7 @@ impl<'a> Parser<'a> {
             }
             Some(Ok(Token::Select)) => self.parse_select(min_bp),
             Some(Ok(Token::Create)) => self.parse_create(min_bp),
+            Some(Ok(Token::Drop)) => self.parse_drop(min_bp),
             s => panic!("Unexpected token: {:?}", s),
         };
 
@@ -177,6 +179,26 @@ impl<'a> Parser<'a> {
         }
 
         lhs
+    }
+
+    fn parse_drop(&mut self, min_bp: u8) -> Node {
+        match self.lexer.next() {
+            Some(Ok(Token::Table)) => self.parse_drop_table(min_bp),
+            s => panic!("Unexpected token: {:?}", s),
+        }
+    }
+
+    fn parse_drop_table(&mut self, _min_bp: u8) -> Node {
+        let lhs = match self.lexer.next() {
+            Some(Ok(Token::Identifier {
+                first_name,
+                second_name: None,
+                third_name: None,
+            })) => Literal::identifier(first_name),
+            s => panic!("Unexpected token: {:?}", s),
+        };
+
+        Node::Prefix(Op::DropTable, vec![Node::Leaf(lhs)])
     }
 
     fn parse_create(&mut self, min_bp: u8) -> Node {
@@ -669,6 +691,14 @@ mod tests {
                     ]
                 )
             )
+        );
+    }
+
+    #[test]
+    fn drop_table() {
+        assert_eq!(
+            parse("drop table table1"),
+            prefix(Op::DropTable, leaf(id("table1")),)
         );
     }
 }
