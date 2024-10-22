@@ -93,8 +93,11 @@ pub enum Op {
 
     CreateTable,
     DropTable,
+    InsertInto,
 
     ColumnDefinition,
+    ColumnList,
+    Values,
 }
 
 impl<'a> Parser<'a> {
@@ -134,6 +137,7 @@ impl<'a> Parser<'a> {
             Some(Ok(Token::Select)) => self.parse_select(min_bp),
             Some(Ok(Token::Create)) => self.parse_create(min_bp),
             Some(Ok(Token::Drop)) => self.parse_drop(min_bp),
+            Some(Ok(Token::Insert)) => self.parse_insert(min_bp),
             s => panic!("Unexpected token: {:?}", s),
         };
 
@@ -295,6 +299,82 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn parse_insert(&mut self, min_bp: u8) -> Node {
+        match self.lexer.next() {
+            Some(Ok(Token::Into)) => self.parse_insert_into(min_bp),
+            s => panic!("Unexpected token: {:?}", s),
+        }
+    }
+
+    fn parse_insert_into(&mut self, _min_bp: u8) -> Node {
+        let lhs = match self.lexer.next() {
+            Some(Ok(Token::Identifier {
+                first_name,
+                second_name: None,
+                third_name: None,
+            })) => Literal::identifier(first_name),
+            s => panic!("Unexpected token: {:?}", s),
+        };
+
+        match self.lexer.next() {
+            Some(Ok(Token::OpenParen)) => {
+                let mut columns = vec![];
+
+                loop {
+                    let column_name = match self.lexer.next() {
+                        Some(Ok(Token::Identifier {
+                            first_name,
+                            second_name: None,
+                            third_name: None,
+                        })) => Literal::identifier(first_name),
+                        Some(Ok(Token::Comma)) => continue,
+                        Some(Ok(Token::CloseParen)) => break,
+                        s => panic!("Unexpected token: {:?}", s),
+                    };
+
+                    columns.push(Node::Leaf(column_name));
+                }
+
+                let values = match self.lexer.next() {
+                    Some(Ok(Token::Values)) => self.parse_values(),
+                    s => panic!("Unexpected token: {:?}", s),
+                };
+
+                Node::Prefix(
+                    Op::InsertInto,
+                    vec![
+                        Node::Leaf(lhs),
+                        Node::Prefix(Op::ColumnList, columns),
+                        Node::Prefix(Op::Values, values),
+                    ],
+                )
+            }
+            s => panic!("Unexpected token: {:?}", s),
+        }
+    }
+
+    fn parse_values(&mut self) -> Vec<Node> {
+        match self.lexer.next() {
+            Some(Ok(Token::OpenParen)) => {
+                let mut values = vec![];
+
+                loop {
+                    let value = match self.lexer.next() {
+                        Some(Ok(Token::NumericLiteral(i))) => Node::Leaf(Literal::numeric(i)),
+                        Some(Ok(Token::CloseParen)) => break,
+                        Some(Ok(Token::Comma)) => continue,
+                        s => panic!("Unexpected token: {:?}", s),
+                    };
+
+                    values.push(value);
+                }
+
+                values
+            }
+            s => panic!("Unexpected token: {:?}", s),
+        }
+    }
+
     fn prefix_operator_bp(op: &Op) -> ((), u8) {
         match op {
             Op::Not => ((), 7),
@@ -363,6 +443,10 @@ mod tests {
 
     fn infix_vec(op: Op, nodes: Vec<Node>) -> Node {
         Node::Infix(op, nodes)
+    }
+
+    fn prefix_vec(op: Op, nodes: Vec<Node>) -> Node {
+        Node::Prefix(op, nodes)
     }
 
     fn prefix(op: Op, lhs: Node) -> Node {
@@ -699,6 +783,42 @@ mod tests {
         assert_eq!(
             parse("drop table table1"),
             prefix(Op::DropTable, leaf(id("table1")),)
+        );
+    }
+
+    #[test]
+    fn insert_into_single_column() {
+        let input = r"
+        insert into table1 (col1) values (1)";
+
+        assert_eq!(
+            parse(input),
+            prefix_vec(
+                Op::InsertInto,
+                vec![
+                    leaf(id("table1")),
+                    prefix_vec(Op::ColumnList, vec![leaf(id("col1"))]),
+                    prefix_vec(Op::Values, vec![leaf(num(1))])
+                ]
+            )
+        );
+    }
+
+    #[test]
+    fn insert_into() {
+        let input = r"
+        insert into table1 (col1, col2) values (1, 2)";
+
+        assert_eq!(
+            parse(input),
+            prefix_vec(
+                Op::InsertInto,
+                vec![
+                    leaf(id("table1")),
+                    prefix_vec(Op::ColumnList, vec![leaf(id("col1")), leaf(id("col2"))]),
+                    prefix_vec(Op::Values, vec![leaf(num(1)), leaf(num(2))])
+                ]
+            )
         );
     }
 }
