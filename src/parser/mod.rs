@@ -4,7 +4,7 @@ pub mod lexer;
 
 use lexer::tokens::Token;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Literal {
     Numeric(i32),
     String(String),
@@ -17,7 +17,7 @@ pub enum Literal {
     Bool(bool),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Type {
     Int,
     String,
@@ -53,7 +53,7 @@ impl Literal {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Node {
     Leaf(Literal),
     LeafType(Type),
@@ -63,11 +63,38 @@ pub enum Node {
     Postfix(Op, Vec<Node>),
 }
 
+impl Node {
+    pub fn op(&self) -> Option<Op> {
+        match self {
+            Node::Infix(op, _) => Some(*op),
+            Node::Prefix(op, _) => Some(*op),
+            Node::Postfix(op, _) => Some(*op),
+            _ => None,
+        }
+    }
+
+    pub fn children(&self) -> Vec<Node> {
+        match self {
+            Node::Infix(_, children) => children.to_vec(),
+            Node::Prefix(_, children) => children.to_vec(),
+            Node::Postfix(_, children) => children.to_vec(),
+            _ => vec![],
+        }
+    }
+
+    pub fn literal(&self) -> Option<Literal> {
+        match self {
+            Node::Leaf(literal) => Some(literal.clone()),
+            _ => None,
+        }
+    }
+}
+
 pub struct Parser<'a> {
     lexer: lexer::Lexer<'a>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Op {
     And,
     Or,

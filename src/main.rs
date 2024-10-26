@@ -1,3 +1,4 @@
+mod analyzer;
 mod parser;
 
 fn main() {
