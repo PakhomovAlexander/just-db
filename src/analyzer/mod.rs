@@ -202,35 +202,79 @@ mod tests {
         parser::{lexer::Lexer, Parser},
     };
 
-    #[test]
-    fn test() {
-        let input = "SELECT col1 FROM table1";
+    fn column(column_name: &str) -> Column {
+        Column {
+            column_name: column_name.to_string(),
+        }
+    }
 
+    fn table(table_name: &str) -> Table {
+        Table {
+            table_name: table_name.to_string(),
+        }
+    }
+
+    fn project(columns: Vec<Column>) -> Operator {
+        Operator::Projec(ProjectInfo { columns })
+    }
+
+    fn read(table: Table) -> Operator {
+        Operator::Read(ReadInfo { table })
+    }
+
+    fn node(op: Operator, children: Vec<LogicalNode>) -> LogicalNode {
+        LogicalNode { op, children }
+    }
+
+    fn leaf(op: Operator) -> LogicalNode {
+        LogicalNode {
+            op,
+            children: vec![],
+        }
+    }
+
+    fn plan(root: LogicalNode) -> LogicalPlan {
+        LogicalPlan { root }
+    }
+
+    fn analyze(input: &str) -> LogicalPlan {
         let lexer = Lexer::new(input);
         let mut parser = Parser::new(lexer);
         let analyzer = Analyzer::new();
 
-        let logical_plan = analyzer.analyze(&parser.parse());
+        analyzer.analyze(&parser.parse())
+    }
 
+    #[test]
+    fn simple_test() {
         assert_eq!(
-            logical_plan,
-            LogicalPlan {
-                root: LogicalNode {
-                    op: Operator::Projec(ProjectInfo {
-                        columns: vec![Column {
-                            column_name: "col1".to_string()
-                        }]
-                    }),
-                    children: vec![LogicalNode {
-                        op: Operator::Read(ReadInfo {
-                            table: Table {
-                                table_name: "table1".to_string()
-                            }
-                        }),
-                        children: vec![]
-                    }]
-                }
-            }
+            analyze("SELECT col1 FROM table1"),
+            plan(node(
+                project(vec![column("col1")]),
+                vec![leaf(read(table("table1")))]
+            ))
+        );
+    }
+
+    #[test]
+    fn select_many_columns() {
+        assert_eq!(
+            analyze("SELECT col1, col2, col3 FROM table1"),
+            plan(node(
+                project(vec![column("col1"), column("col2"), column("col3")]),
+                vec![leaf(read(table("table1")))]
+            ))
+        );
+    }
+
+    #[test]
+    fn select_from_many_tables() {
+        assert_eq!(
+            analyze("SELECT col1 FROM table1, table2"),
+            plan(node(
+                project(vec![column("col1")]),
+                vec![leaf(read(table("table1"))), leaf(read(table("table2")))]
+            ))
         );
     }
 }
