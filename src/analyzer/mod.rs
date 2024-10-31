@@ -12,6 +12,32 @@ pub enum Operator {
     Sort(SortInfo),
     Limit(LimitInfo),
     Distinct(DistinctInfo),
+
+    Add(InfixOpInfo),
+    Sub(InfixOpInfo),
+    Mul(InfixOpInfo),
+    Div(InfixOpInfo),
+    Eq(InfixOpInfo),
+    Neq(InfixOpInfo),
+    Lt(InfixOpInfo),
+    Lte(InfixOpInfo),
+    Gt(InfixOpInfo),
+    Gte(InfixOpInfo),
+    And(InfixOpInfo),
+    Or(InfixOpInfo),
+    Not,
+    In,
+    Like,
+    IsNull,
+    IsNotNull,
+    Exists,
+    NotExists,
+    Between,
+    Case,
+    Cast,
+
+    Const(Constant),
+    Col(Column),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -25,12 +51,26 @@ pub struct Column {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub enum Constant {
+    Num(i32),
+    Str(String),
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub struct Table {
     pub table_name: String,
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct FilterInfo {}
+pub struct FilterInfo {
+    pub node: Box<LogicalNode>,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct InfixOpInfo {
+    pub left: Box<LogicalNode>,
+    pub right: Box<LogicalNode>,
+}
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct ReadInfo {
@@ -92,7 +132,9 @@ impl Analyzer {
                 }]
             }
             Some(Op::From) => {
-                let tables_node = node.children()[0].clone();
+                let children = node.children();
+
+                let tables_node = children[0].clone();
                 let mut walker = TableWalker::new();
                 let tables = walker.walk(tables_node);
 
@@ -107,7 +149,27 @@ impl Analyzer {
                     nodes.push(node);
                 }
 
-                nodes
+                let where_node = children[children.len() - 1].clone();
+                if where_node.op() == Some(Op::Where) {
+                    let where_l_node = self.walk(&where_node);
+                    let n = LogicalNode {
+                        op: Operator::Filter(FilterInfo {
+                            node: Box::new(where_l_node[0].clone()),
+                        }),
+                        children: nodes,
+                    };
+                    vec![n]
+                } else {
+                    nodes
+                }
+            }
+            Some(Op::Where) => {
+                let children = node.children();
+
+                let node = children[0].clone();
+                let mut walker = WhereWalker::new();
+
+                vec![walker.walk(node)]
             }
             None => {
                 panic!("unexpected node: {:?}", node);
@@ -196,11 +258,58 @@ impl TableWalker {
     }
 }
 
+struct WhereWalker {}
+
+impl WhereWalker {
+    fn new() -> Self {
+        WhereWalker {}
+    }
+
+    fn walk(&mut self, node: Node) -> LogicalNode {
+        match node.op() {
+            Some(Op::Equals) => {
+                let children = node.children();
+                // TODO: do not clone here
+                let left = self.walk(children[0].clone());
+                let right = self.walk(children[1].clone());
+
+                LogicalNode {
+                    op: Operator::Eq(InfixOpInfo {
+                        left: Box::new(left),
+                        right: Box::new(right),
+                    }),
+                    children: vec![],
+                }
+            }
+            None => match node.literal().unwrap() {
+                Literal::Identifier {
+                    first_name,
+                    second_name: _,
+                    third_name: _,
+                } => LogicalNode {
+                    op: Operator::Col(Column {
+                        column_name: first_name,
+                    }),
+                    children: vec![],
+                },
+                Literal::Numeric(n) => LogicalNode {
+                    op: Operator::Const(Constant::Num(n)),
+                    children: vec![],
+                },
+                n => panic!("unexpected node: {:?}", n),
+            },
+            n => panic!("unexpected node: {:?}", n),
+        }
+    }
+}
+
 mod tests {
     use crate::{
         analyzer::*,
         parser::{lexer::Lexer, Parser},
     };
+
+    use pretty_assertions::assert_eq;
 
     fn column(column_name: &str) -> Column {
         Column {
@@ -220,6 +329,27 @@ mod tests {
 
     fn read(table: Table) -> Operator {
         Operator::Read(ReadInfo { table })
+    }
+
+    fn filter(node: LogicalNode) -> Operator {
+        Operator::Filter(FilterInfo {
+            node: Box::new(node),
+        })
+    }
+
+    fn eq(left: LogicalNode, right: LogicalNode) -> Operator {
+        Operator::Eq(InfixOpInfo {
+            left: Box::new(left),
+            right: Box::new(right),
+        })
+    }
+
+    fn col(column_name: &str) -> Operator {
+        Operator::Col(column(column_name))
+    }
+
+    fn cons_int(i: i32) -> Operator {
+        Operator::Const(Constant::Num(i))
     }
 
     fn node(op: Operator, children: Vec<LogicalNode>) -> LogicalNode {
@@ -274,6 +404,20 @@ mod tests {
             plan(node(
                 project(vec![column("col1")]),
                 vec![leaf(read(table("table1"))), leaf(read(table("table2")))]
+            ))
+        );
+    }
+
+    #[test]
+    fn select_from_where() {
+        assert_eq!(
+            analyze("SELECT col1 FROM table1 WHERE col2 = 1"),
+            plan(node(
+                project(vec![column("col1")]),
+                vec![node(
+                    filter(leaf(eq(leaf(col("col2")), leaf(cons_int(1))))),
+                    vec![leaf(read(table("table1")))]
+                ),]
             ))
         );
     }
