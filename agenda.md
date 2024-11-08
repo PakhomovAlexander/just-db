@@ -6,7 +6,11 @@
 
 
 Today we are going to:
-- [ ] add filter operator to the logical plan
+- [ ] review the analyzer
+- [ ] try to write THE SIMPLEST optimizer in the world
+   - TableScan 
+   - FilterRow 
+   - Projection
 
 
 

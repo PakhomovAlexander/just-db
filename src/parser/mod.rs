@@ -29,6 +29,10 @@ impl Literal {
         Literal::Numeric(i.parse().unwrap())
     }
 
+    fn string(s: String) -> Literal {
+        Literal::String(s)
+    }
+
     fn identifier(identifier: &str) -> Literal {
         let parts: Vec<&str> = identifier.split('.').collect();
 
@@ -139,6 +143,7 @@ impl<'a> Parser<'a> {
     fn parse_bp(&mut self, min_bp: u8) -> Node {
         let mut lhs = match self.lexer.next() {
             Some(Ok(Token::NumericLiteral(i))) => Node::Leaf(Literal::numeric(i)),
+            Some(Ok(Token::StringLiteral(s))) => Node::Leaf(Literal::string(s)),
             Some(Ok(Token::Identifier {
                 first_name,
                 second_name: None,
@@ -188,7 +193,7 @@ impl<'a> Parser<'a> {
             };
 
             // postfix bp
-            if let Some((l_bp, ())) = Self::postfix_operator_bp(&op) {
+            if let Some((_l_bp, ())) = Self::postfix_operator_bp(&op) {
                 // operate with postfix
                 continue;
             }
@@ -456,6 +461,10 @@ mod tests {
         Literal::Numeric(i)
     }
 
+    fn string(i: &str) -> Literal {
+        Literal::String(i.to_string())
+    }
+
     fn leaf(literal: Literal) -> Node {
         Node::Leaf(literal)
     }
@@ -498,6 +507,11 @@ mod tests {
     #[test]
     fn mininmal_expression_parser() {
         assert_eq!(parse("1"), leaf(num(1)));
+    }
+
+    #[test]
+    fn mininmal_expression_parser_str() {
+        assert_eq!(parse("'I am a string!'"), leaf(string("I am a string!")));
     }
 
     #[test]

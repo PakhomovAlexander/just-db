@@ -1,7 +1,10 @@
 use core::panic;
+use std::fmt::Display;
 
 use crate::parser::{Literal, Node, Op};
 
+//#[allow(clippy::unused)]
+#[allow(dead_code)]
 #[derive(Debug, PartialEq, Clone)]
 pub enum Operator {
     Projec(ProjectInfo),
@@ -101,6 +104,13 @@ pub struct LogicalNode {
 #[derive(Debug, PartialEq, Clone)]
 pub struct LogicalPlan {
     pub root: LogicalNode,
+}
+
+impl Display for LogicalPlan {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let _ = f.write_str("NOT IMPLEMENTED YET");
+        Ok(())
+    }
 }
 
 pub struct Analyzer {}
@@ -296,6 +306,10 @@ impl WhereWalker {
                     op: Operator::Const(Constant::Num(n)),
                     children: vec![],
                 },
+                Literal::String(s) => LogicalNode {
+                    op: Operator::Const(Constant::Str(s.to_string())),
+                    children: vec![],
+                },
                 n => panic!("unexpected node: {:?}", n),
             },
             n => panic!("unexpected node: {:?}", n),
@@ -303,13 +317,12 @@ impl WhereWalker {
     }
 }
 
+#[allow(dead_code)]
 mod tests {
     use crate::{
         analyzer::*,
         parser::{lexer::Lexer, Parser},
     };
-
-    use pretty_assertions::assert_eq;
 
     fn column(column_name: &str) -> Column {
         Column {
@@ -350,6 +363,10 @@ mod tests {
 
     fn cons_int(i: i32) -> Operator {
         Operator::Const(Constant::Num(i))
+    }
+
+    fn cons_str(s: &str) -> Operator {
+        Operator::Const(Constant::Str(s.to_string()))
     }
 
     fn node(op: Operator, children: Vec<LogicalNode>) -> LogicalNode {
@@ -416,6 +433,23 @@ mod tests {
                 project(vec![column("col1")]),
                 vec![node(
                     filter(leaf(eq(leaf(col("col2")), leaf(cons_int(1))))),
+                    vec![leaf(read(table("table1")))]
+                ),]
+            ))
+        );
+    }
+
+    #[test]
+    fn select_from_where_with_string() {
+        assert_eq!(
+            analyze("SELECT col1 FROM table1 WHERE col2 = 'I am a string!'"),
+            plan(node(
+                project(vec![column("col1")]),
+                vec![node(
+                    filter(leaf(eq(
+                        leaf(col("col2")),
+                        leaf(cons_str("I am a string!"))
+                    ))),
                     vec![leaf(read(table("table1")))]
                 ),]
             ))
