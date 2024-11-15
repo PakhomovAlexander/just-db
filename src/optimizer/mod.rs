@@ -1,9 +1,8 @@
 use core::panic;
-use std::collections::HashMap;
 
 use crate::{
     analyzer::{LogicalNode, LogicalPlan, Operator},
-    catalog::{Catalog, ColumnId, ColumnSchema, TableId},
+    catalog::{Catalog, ColumnSchema, TableId},
 };
 
 struct Optimizer {
@@ -120,11 +119,11 @@ struct Filter {}
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashMap, vec};
+    use std::vec;
 
     use crate::{
         analyzer::{Analyzer, LogicalPlan},
-        catalog::{Catalog, ColumnId, DataType, TableId, TableSchema, TableSchemaBuilder},
+        catalog::{Catalog, DataType, TableSchemaBuilder},
         optimizer::{Column, Project, TableScan},
         parser::{lexer::Lexer, Parser},
     };

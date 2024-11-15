@@ -415,9 +415,7 @@ impl<'a> Parser<'a> {
     }
 
     fn postfix_operator_bp(op: &Op) -> Option<(u8, ())> {
-        match op {
-            _ => None,
-        }
+        None
     }
 
     fn infix_operator_bp(op: &Op) -> Option<(u8, u8)> {
