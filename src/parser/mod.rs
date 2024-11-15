@@ -414,7 +414,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn postfix_operator_bp(op: &Op) -> Option<(u8, ())> {
+    fn postfix_operator_bp(_op: &Op) -> Option<(u8, ())> {
         None
     }
 
