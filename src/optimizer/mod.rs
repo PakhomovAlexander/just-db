@@ -1,35 +1,13 @@
 use core::panic;
 use std::collections::HashMap;
 
-use crate::analyzer::{LogicalNode, LogicalPlan, Operator};
-
-trait Schema {
-    fn get_col_type(&self, table: String, col: String) -> Type;
-}
-
-struct MemSchema {
-    // table_name -> col_name -> type
-    map: HashMap<String, HashMap<String, Type>>,
-}
-
-impl Schema for MemSchema {
-    fn get_col_type(&self, table: String, col: String) -> Type {
-        match self.map.get(&table) {
-            Some(inner) => match inner.get(&col) {
-                Some(t) => t.clone(),
-                None => {
-                    panic!("No such column {} in table {}", col, table)
-                }
-            },
-            None => {
-                panic!("No such table {}", table)
-            }
-        }
-    }
-}
+use crate::{
+    analyzer::{LogicalNode, LogicalPlan, Operator},
+    catalog::{Catalog, ColumnId, ColumnSchema, TableId},
+};
 
 struct Optimizer {
-    s: MemSchema,
+    catalog: Catalog,
 }
 
 impl Optimizer {
@@ -37,7 +15,7 @@ impl Optimizer {
         let root_node = l_plan.root;
 
         let mut builder = PhysicalPlanBuilder {
-            schema: &self.s,
+            catalog: &self.catalog,
 
             project: None,
             scan: None,
@@ -49,13 +27,13 @@ impl Optimizer {
         builder.build()
     }
 
-    fn new(schema: MemSchema) -> Self {
-        Self { s: schema }
+    pub fn new(catalog: Catalog) -> Optimizer {
+        Optimizer { catalog }
     }
 }
 
 struct PhysicalPlanBuilder<'a> {
-    schema: &'a MemSchema,
+    catalog: &'a Catalog,
 
     project: Option<Project>,
     scan: Option<TableScan>,
@@ -67,14 +45,13 @@ impl PhysicalPlanBuilder<'_> {
         match &node.op {
             Operator::Projec(info) => {
                 let mut cols = Vec::new();
+                let table_id = TableId::public("table1");
+                let table_schema = self.catalog.get_table(&table_id).unwrap();
+
                 for c in &info.columns {
-                    cols.push(Column {
-                        name: c.column_name.clone(),
-                        t: self
-                            .schema
-                            // TODO: resolve names
-                            .get_col_type("table1".to_string(), c.column_name.clone()),
-                    });
+                    cols.push(Column::new(
+                        &table_schema.get_column(&c.column_name).unwrap(),
+                    ));
                 }
 
                 self.project = Some(Project { cols });
@@ -127,14 +104,15 @@ struct Project {
 
 #[derive(Debug, PartialEq)]
 struct Column {
-    t: Type,
-    name: String,
+    col_schema: ColumnSchema,
 }
 
-#[derive(Debug, PartialEq, Clone)]
-enum Type {
-    String,
-    Int,
+impl Column {
+    fn new(col_schema: &ColumnSchema) -> Column {
+        Column {
+            col_schema: col_schema.clone(),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -146,7 +124,8 @@ mod tests {
 
     use crate::{
         analyzer::{Analyzer, LogicalPlan},
-        optimizer::{self, Column, MemSchema, Project, Schema, TableScan, Type},
+        catalog::{Catalog, ColumnId, DataType, TableId, TableSchema, TableSchemaBuilder},
+        optimizer::{Column, Project, TableScan},
         parser::{lexer::Lexer, Parser},
     };
 
@@ -164,14 +143,16 @@ mod tests {
     fn simple_test() {
         let l_plan = analyze("SELECT col1 FROM table1");
 
-        let schema = MemSchema {
-            map: HashMap::from([(
-                "table1".to_string(),
-                HashMap::from([("col1".to_string(), Type::Int)]),
-            )]),
-        };
+        let mut catalog = Catalog::mem();
 
-        let optimizer = Optimizer::new(schema);
+        let ts = TableSchemaBuilder::public()
+            .table("table1")
+            .col("col1", DataType::Int)
+            .build();
+        let _ = catalog.register_table(&ts);
+        let cs = ts.get_column("col1").unwrap();
+
+        let optimizer = Optimizer::new(catalog);
 
         let p_plan = optimizer.optimize(l_plan);
 
@@ -179,10 +160,7 @@ mod tests {
             p_plan,
             PhysicalPlan {
                 project: Project {
-                    cols: vec![Column {
-                        t: Type::Int,
-                        name: "col1".to_string()
-                    }]
+                    cols: vec![Column { col_schema: cs }]
                 },
                 filter: None,
                 scan: TableScan {

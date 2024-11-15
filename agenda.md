@@ -4,13 +4,12 @@
 
 
 
-
 Today we are going to:
-- [x] review the analyzer
+- [ ] rewrite logical plan to have full qualified names for tables
+   - [ ] implement Catalog API
 - [ ] try to write THE SIMPLEST optimizer in the world
-   - [x] TableScan 
    - [ ] FilterRow 
-   - [x] Projection
+- [ ] execute first plan ?*
 
 
 

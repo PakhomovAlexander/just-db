@@ -1,4 +1,5 @@
 mod analyzer;
+mod catalog;
 mod optimizer;
 mod parser;
 
