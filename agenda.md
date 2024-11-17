@@ -5,6 +5,7 @@
 
 
 Today we are going to:
+- [ ] Rc, RefCell, Cell, Box
 - [ ] rewrite logical plan to have full qualified names for tables
    - [x] implement Catalog API
 - [ ] try to write THE SIMPLEST optimizer in the world
@@ -14,7 +15,7 @@ Today we are going to:
 
 - [ ] execute first plan ?*
   - [ ] design a pipeline model / volcano model
-  - [ ] transform physical plan to pipeline 
+  - [x] transform physical plan to pipeline 
 
 
 

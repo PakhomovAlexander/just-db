@@ -1,14 +1,15 @@
 #![allow(dead_code)]
-use std::collections::HashMap;
+use std::{collections::HashMap, ops::DerefMut};
 
+#[derive(Clone)]
 pub struct Catalog {
-    store: Box<dyn CatalogStore>,
+    store: MemoryCatalogStore,
 }
 
 impl Catalog {
     pub fn mem() -> Catalog {
         Catalog {
-            store: Box::new(MemoryCatalogStore::new()),
+            store: MemoryCatalogStore::new(),
         }
     }
 
@@ -145,6 +146,7 @@ trait CatalogStore {
     fn delete(&mut self, id: &TableId) -> Result<(), ()>;
 }
 
+#[derive(Clone)]
 struct MemoryCatalogStore {
     tables: HashMap<TableId, TableSchema>,
 }

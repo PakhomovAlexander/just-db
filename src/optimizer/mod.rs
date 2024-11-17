@@ -1,7 +1,9 @@
 #![allow(dead_code)]
 
 use core::panic;
-use std::collections::HashMap;
+use std::{
+    array::IntoIter, borrow::Borrow, cell::RefCell, collections::HashMap, rc::Rc, sync::Arc,
+};
 
 use crate::{
     analyzer::{LogicalNode, LogicalPlan, Operator},
@@ -10,6 +12,7 @@ use crate::{
 
 struct Optimizer {
     catalog: Catalog,
+    storage: StorageEngine,
 }
 
 impl Optimizer {
@@ -17,7 +20,8 @@ impl Optimizer {
         let root_node = l_plan.root;
 
         let mut builder = PhysicalPlanBuilder {
-            catalog: &self.catalog,
+            catalog: self.catalog.clone(),
+            storage: self.storage.clone(),
         };
 
         let root_op = builder.walk(&root_node);
@@ -28,16 +32,17 @@ impl Optimizer {
         }
     }
 
-    pub fn new(catalog: Catalog) -> Optimizer {
-        Optimizer { catalog }
+    pub fn new(catalog: Catalog, storage: StorageEngine) -> Optimizer {
+        Optimizer { catalog, storage }
     }
 }
 
-struct PhysicalPlanBuilder<'a> {
-    catalog: &'a Catalog,
+struct PhysicalPlanBuilder {
+    catalog: Catalog,
+    storage: StorageEngine,
 }
 
-impl PhysicalPlanBuilder<'_> {
+impl PhysicalPlanBuilder {
     fn walk(&mut self, node: &LogicalNode) -> Vec<Op> {
         match &node.op {
             Operator::Projec(info) => {
@@ -65,6 +70,11 @@ impl PhysicalPlanBuilder<'_> {
                 vec![Op::FullScan(
                     FullScanInfo {
                         name: info.table.table_name.clone(),
+                        engine: self.storage.clone(),
+                        state: FullScanState {
+                            curr_pos: 0,
+                            iterator: None,
+                        },
                     },
                     Vec::new(),
                 )]
@@ -88,21 +98,116 @@ enum Op {
 
 /// Vulcano pipiline model
 impl Op {
-    fn open(&mut self) {}
-
-    fn next(&mut self) -> Option<Tuple> {
-        None
+    fn full_scan(table_name: &str, engine: StorageEngine) -> Op {
+        Op::FullScan(
+            FullScanInfo {
+                name: table_name.to_string(),
+                engine,
+                state: FullScanState {
+                    curr_pos: 0,
+                    iterator: None,
+                },
+            },
+            vec![],
+        )
     }
 
-    fn close(&mut self) {}
+    fn project(cols: Vec<Column>, children: Vec<Op>) -> Op {
+        Op::Project(ProjectInfo { cols }, children)
+    }
+
+    fn filter(_info: FilterInfo, children: Vec<Op>) -> Op {
+        Op::Filter(FilterInfo {}, children)
+    }
+
+    fn open(&mut self) {
+        match self {
+            Op::FullScan(info, _) => {
+                let tuples = info.engine.scan(&info.name);
+                let iter = FullScanIterator {
+                    curr_pos: 0,
+                    tuples,
+                };
+
+                info.state.iterator = Some(iter);
+            }
+            Op::Project(_, children) => {
+                for c in children {
+                    c.open();
+                }
+            }
+            Op::Filter(_, children) => {
+                for c in children {
+                    c.open();
+                }
+            }
+        }
+    }
+
+    fn next(&mut self) -> Option<Tuple> {
+        match self {
+            Op::FullScan(info, _) => {
+                let iter = info.state.iterator.as_mut().unwrap();
+                if iter.curr_pos < iter.tuples.len() {
+                    let t = iter.tuples[iter.curr_pos].clone();
+                    iter.curr_pos += 1;
+                    Some(t)
+                } else {
+                    None
+                }
+            }
+            Op::Project(_, children_ops) => {
+                // TODO: Implement projection
+                children_ops[0].next()
+            }
+            Op::Filter(_, children_ops) => {
+                let t = children_ops[0].next().unwrap();
+                Some(t)
+            }
+        }
+    }
+
+    fn close(&mut self) {
+        match self {
+            Op::FullScan(info, _) => {
+                info.state.iterator = None;
+            }
+            Op::Project(_, children) => {
+                for c in children {
+                    c.close();
+                }
+            }
+            Op::Filter(_, children) => {
+                for c in children {
+                    c.close();
+                }
+            }
+        }
+    }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
+struct FullScanIterator {
+    curr_pos: usize,
+    tuples: Vec<Tuple>,
+}
+
+#[derive(Debug, PartialEq, Clone)]
 struct Tuple {
     data: HashMap<String, Val>,
 }
 
-#[derive(Debug, PartialEq)]
+impl Tuple {
+    fn new(data: Vec<(&str, Val)>) -> Tuple {
+        let mut map = HashMap::new();
+        for (k, v) in data {
+            map.insert(k.to_string(), v);
+        }
+        Tuple { data: map }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
 enum Val {
     Int(i32),
     String(String),
@@ -110,14 +215,66 @@ enum Val {
     Null,
 }
 
+#[derive(Debug, PartialEq, Clone)]
+enum StorageEngine {
+    Memory(MemoryStorageEngine),
+}
+
+impl StorageEngine {
+    fn mem() -> StorageEngine {
+        StorageEngine::Memory(MemoryStorageEngine {
+            tables: HashMap::new(),
+        })
+    }
+
+    fn scan(&self, table_name: &str) -> Vec<Tuple> {
+        match self {
+            StorageEngine::Memory(engine) => engine.tables.get(table_name).unwrap().clone(),
+        }
+    }
+
+    fn insert(&mut self, table_name: &str, tuples: Vec<Tuple>) {
+        match self {
+            StorageEngine::Memory(engine) => {
+                engine.tables.insert(table_name.to_string(), tuples);
+            }
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+struct MemoryStorageEngine {
+    tables: HashMap<String, Vec<Tuple>>,
+}
+
 #[derive(Debug, PartialEq)]
 struct PhysicalPlan {
     root: Op,
 }
 
+impl PhysicalPlan {
+    fn execute_all(&mut self) -> Vec<Tuple> {
+        let mut tuples = Vec::new();
+        self.root.open();
+        while let Some(t) = self.root.next() {
+            tuples.push(t);
+        }
+        self.root.close();
+        tuples
+    }
+}
+
 #[derive(Debug, PartialEq, Clone)]
 struct FullScanInfo {
     name: String,
+    state: FullScanState,
+    engine: StorageEngine,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+struct FullScanState {
+    curr_pos: usize,
+    iterator: Option<FullScanIterator>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -143,12 +300,18 @@ struct FilterInfo {}
 
 #[cfg(test)]
 mod tests {
-    use std::vec;
+    use std::{
+        borrow::{Borrow, Cow},
+        cell::RefCell,
+        rc::Rc,
+        sync::Arc,
+        vec,
+    };
 
     use crate::{
         analyzer::{Analyzer, LogicalPlan},
         catalog::{Catalog, DataType, TableSchemaBuilder},
-        optimizer::{Column, FullScanInfo, Op, ProjectInfo},
+        optimizer::{Column, Op, StorageEngine, Tuple, Val},
         parser::{lexer::Lexer, Parser},
     };
 
@@ -167,6 +330,7 @@ mod tests {
         let l_plan = analyze("SELECT col1 FROM table1");
 
         let mut catalog = Catalog::mem();
+        let mut storage = StorageEngine::mem();
 
         let ts = TableSchemaBuilder::public()
             .table("table1")
@@ -175,25 +339,50 @@ mod tests {
         let _ = catalog.register_table(&ts);
         let cs = ts.get_column("col1").unwrap();
 
-        let optimizer = Optimizer::new(catalog);
+        let optimizer = Optimizer::new(catalog.clone(), storage.clone());
 
         let p_plan = optimizer.optimize(l_plan);
 
         assert_eq!(
             p_plan,
             PhysicalPlan {
-                root: Op::Project(
-                    ProjectInfo {
-                        cols: vec![Column::new(&cs)]
-                    },
-                    vec![Op::FullScan(
-                        FullScanInfo {
-                            name: "table1".to_string()
-                        },
-                        vec![]
-                    )]
+                root: Op::project(
+                    vec![Column::new(&cs)],
+                    vec![Op::full_scan("table1", storage)]
                 )
             }
         );
+    }
+
+    #[test]
+    fn execute_pipeline() {
+        let l_plan = analyze("SELECT col1 FROM table1");
+
+        let mut catalog = Catalog::mem();
+        let mut storage = StorageEngine::mem();
+
+        let ts = TableSchemaBuilder::public()
+            .table("table1")
+            .col("col1", DataType::Int)
+            .build();
+        let _ = catalog.register_table(&ts);
+
+        storage.insert(
+            "table1",
+            vec![
+                Tuple::new(vec![("col1", Val::Int(1))]),
+                Tuple::new(vec![("col1", Val::Int(2))]),
+                Tuple::new(vec![("col1", Val::Int(3))]),
+                Tuple::new(vec![("col1", Val::Int(4))]),
+            ],
+        );
+
+        let optimizer = Optimizer::new(catalog, storage);
+
+        let mut p_plan = optimizer.optimize(l_plan);
+
+        let tuples = p_plan.execute_all();
+
+        assert_eq!(tuples.len(), 4);
     }
 }
