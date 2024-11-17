@@ -1,9 +1,7 @@
 #![allow(dead_code)]
 
 use core::panic;
-use std::{
-    array::IntoIter, borrow::Borrow, cell::RefCell, collections::HashMap, rc::Rc, sync::Arc,
-};
+use std::collections::HashMap;
 
 use crate::{
     analyzer::{LogicalNode, LogicalPlan, Operator},
@@ -300,13 +298,7 @@ struct FilterInfo {}
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        borrow::{Borrow, Cow},
-        cell::RefCell,
-        rc::Rc,
-        sync::Arc,
-        vec,
-    };
+    use std::vec;
 
     use crate::{
         analyzer::{Analyzer, LogicalPlan},
@@ -330,7 +322,7 @@ mod tests {
         let l_plan = analyze("SELECT col1 FROM table1");
 
         let mut catalog = Catalog::mem();
-        let mut storage = StorageEngine::mem();
+        let storage = StorageEngine::mem();
 
         let ts = TableSchemaBuilder::public()
             .table("table1")

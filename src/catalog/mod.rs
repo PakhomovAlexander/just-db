@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use std::{collections::HashMap, ops::DerefMut};
+use std::collections::HashMap;
 
 #[derive(Clone)]
 pub struct Catalog {
