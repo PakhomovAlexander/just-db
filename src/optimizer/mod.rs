@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use core::panic;
+use std::collections::HashMap;
 
 use crate::{
     analyzer::{LogicalNode, LogicalPlan, Operator},
@@ -17,15 +18,14 @@ impl Optimizer {
 
         let mut builder = PhysicalPlanBuilder {
             catalog: &self.catalog,
-
-            project: None,
-            scan: None,
-            filter: None,
         };
 
-        builder.walk(&root_node);
+        let root_op = builder.walk(&root_node);
+        assert!(root_op.len() == 1);
 
-        builder.build()
+        PhysicalPlan {
+            root: root_op[0].clone(),
+        }
     }
 
     pub fn new(catalog: Catalog) -> Optimizer {
@@ -35,14 +35,10 @@ impl Optimizer {
 
 struct PhysicalPlanBuilder<'a> {
     catalog: &'a Catalog,
-
-    project: Option<Project>,
-    scan: Option<TableScan>,
-    filter: Option<Filter>,
 }
 
 impl PhysicalPlanBuilder<'_> {
-    fn walk(&mut self, node: &LogicalNode) {
+    fn walk(&mut self, node: &LogicalNode) -> Vec<Op> {
         match &node.op {
             Operator::Projec(info) => {
                 let mut cols = Vec::new();
@@ -55,55 +51,81 @@ impl PhysicalPlanBuilder<'_> {
                     ));
                 }
 
-                self.project = Some(Project { cols });
+                let c = &node.children;
+
+                let child_ops = if !c.is_empty() {
+                    self.walk(&c[0])
+                } else {
+                    Vec::new()
+                };
+
+                vec![Op::Project(ProjectInfo { cols }, child_ops)]
             }
             Operator::Read(info) => {
-                self.scan = Some(TableScan {
-                    name: info.table.table_name.clone(),
-                });
+                vec![Op::FullScan(
+                    FullScanInfo {
+                        name: info.table.table_name.clone(),
+                    },
+                    Vec::new(),
+                )]
             }
             Operator::Filter(_info) => {
-                self.filter = Some(Filter {});
+                vec![Op::Filter(FilterInfo {}, self.walk(&node.children[0]))]
             }
             _ => {
                 panic!("Unsopported node")
             }
-        };
-
-        let c = &node.children;
-
-        if !c.is_empty() {
-            self.walk(&c[0]);
         }
     }
+}
 
-    fn build(self) -> PhysicalPlan {
-        PhysicalPlan {
-            project: self.project.unwrap(),
-            filter: self.filter,
-            scan: self.scan.unwrap(),
-        }
+#[derive(Debug, PartialEq, Clone)]
+enum Op {
+    Project(ProjectInfo, Vec<Op>),
+    Filter(FilterInfo, Vec<Op>),
+    FullScan(FullScanInfo, Vec<Op>),
+}
+
+/// Vulcano pipiline model
+impl Op {
+    fn open(&mut self) {}
+
+    fn next(&mut self) -> Option<Tuple> {
+        None
     }
+
+    fn close(&mut self) {}
+}
+
+#[derive(Debug, PartialEq)]
+struct Tuple {
+    data: HashMap<String, Val>,
+}
+
+#[derive(Debug, PartialEq)]
+enum Val {
+    Int(i32),
+    String(String),
+    Bool(bool),
+    Null,
 }
 
 #[derive(Debug, PartialEq)]
 struct PhysicalPlan {
-    project: Project,
-    scan: TableScan,
-    filter: Option<Filter>,
+    root: Op,
 }
 
-#[derive(Debug, PartialEq)]
-struct TableScan {
+#[derive(Debug, PartialEq, Clone)]
+struct FullScanInfo {
     name: String,
 }
 
-#[derive(Debug, PartialEq)]
-struct Project {
+#[derive(Debug, PartialEq, Clone)]
+struct ProjectInfo {
     cols: Vec<Column>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 struct Column {
     col_schema: ColumnSchema,
 }
@@ -116,8 +138,8 @@ impl Column {
     }
 }
 
-#[derive(Debug, PartialEq)]
-struct Filter {}
+#[derive(Debug, PartialEq, Clone)]
+struct FilterInfo {}
 
 #[cfg(test)]
 mod tests {
@@ -126,7 +148,7 @@ mod tests {
     use crate::{
         analyzer::{Analyzer, LogicalPlan},
         catalog::{Catalog, DataType, TableSchemaBuilder},
-        optimizer::{Column, Project, TableScan},
+        optimizer::{Column, FullScanInfo, Op, ProjectInfo},
         parser::{lexer::Lexer, Parser},
     };
 
@@ -160,13 +182,17 @@ mod tests {
         assert_eq!(
             p_plan,
             PhysicalPlan {
-                project: Project {
-                    cols: vec![Column { col_schema: cs }]
-                },
-                filter: None,
-                scan: TableScan {
-                    name: "table1".to_string()
-                }
+                root: Op::Project(
+                    ProjectInfo {
+                        cols: vec![Column::new(&cs)]
+                    },
+                    vec![Op::FullScan(
+                        FullScanInfo {
+                            name: "table1".to_string()
+                        },
+                        vec![]
+                    )]
+                )
             }
         );
     }
