@@ -13,8 +13,10 @@ Today we are going to:
      - [ ] expression eval/analyze // WHERE 1 = col1 + col2
      - [ ] Tuple API
 
-- [ ] execute first plan ?*
-  - [ ] design a pipeline model / volcano model
+- [ ] design storage API
+
+- [x] execute first plan ?*
+  - [x] design a pipeline model / volcano model
   - [x] transform physical plan to pipeline 
 
 
