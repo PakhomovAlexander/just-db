@@ -8,18 +8,18 @@ use crate::{
     catalog::{Catalog, ColumnSchema, TableId},
 };
 
-struct Optimizer<'a> {
-    catalog: &'a Catalog,
-    storage: &'a StorageEngine,
+struct Optimizer {
+    catalog: Rc<Catalog>,
+    storage: Rc<StorageEngine>,
 }
 
-impl Optimizer<'_> {
+impl Optimizer {
     pub fn optimize(&self, l_plan: LogicalPlan) -> PhysicalPlan {
         let root_node = l_plan.root;
 
         let mut builder = PhysicalPlanBuilder {
-            catalog: &self.catalog,
-            storage: &self.storage,
+            catalog: Rc::clone(&self.catalog),
+            storage: Rc::clone(&self.storage),
         };
 
         let root_op = builder.walk(&root_node);
@@ -30,17 +30,17 @@ impl Optimizer<'_> {
         }
     }
 
-    pub fn new(catalog: &Catalog, storage: &StorageEngine) -> Self {
+    pub fn new(catalog: Rc<Catalog>, storage: Rc<StorageEngine>) -> Self {
         Optimizer { catalog, storage }
     }
 }
 
-struct PhysicalPlanBuilder<'a> {
-    catalog: &'a Catalog,
-    storage: &'a StorageEngine,
+struct PhysicalPlanBuilder {
+    catalog: Rc<Catalog>,
+    storage: Rc<StorageEngine>,
 }
 
-impl PhysicalPlanBuilder<'_> {
+impl PhysicalPlanBuilder {
     fn walk(&mut self, node: &LogicalNode) -> Vec<Op> {
         match &node.op {
             Operator::Projec(info) => {
@@ -68,7 +68,7 @@ impl PhysicalPlanBuilder<'_> {
                 vec![Op::FullScan(
                     FullScanInfo {
                         name: info.table.table_name.clone(),
-                        engine: &self.storage,
+                        engine: Rc::clone(&self.storage),
                         state: FullScanState {
                             curr_pos: 0,
                             iterator: None,
@@ -88,15 +88,15 @@ impl PhysicalPlanBuilder<'_> {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-enum Op<'a> {
-    Project(ProjectInfo, Vec<Op<'a>>),
-    Filter(FilterInfo, Vec<Op<'a>>),
-    FullScan(FullScanInfo<'a>, Vec<Op<'a>>),
+enum Op {
+    Project(ProjectInfo, Vec<Op>),
+    Filter(FilterInfo, Vec<Op>),
+    FullScan(FullScanInfo, Vec<Op>),
 }
 
 /// Vulcano pipiline model
-impl Op<'_> {
-    fn full_scan(table_name: &str, engine: &StorageEngine) -> Op<'_> {
+impl Op {
+    fn full_scan(table_name: &str, engine: Rc<StorageEngine>) -> Op {
         Op::FullScan(
             FullScanInfo {
                 name: table_name.to_string(),
@@ -263,10 +263,10 @@ impl PhysicalPlan {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-struct FullScanInfo<'a> {
+struct FullScanInfo {
     name: String,
     state: FullScanState,
-    engine: &'a StorageEngine,
+    engine: Rc<StorageEngine>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -298,7 +298,7 @@ struct FilterInfo {}
 
 #[cfg(test)]
 mod tests {
-    use std::{cell::RefCell, rc::Rc, vec};
+    use std::{borrow::Borrow, cell::RefCell, rc::Rc, vec};
 
     use crate::{
         analyzer::{Analyzer, LogicalPlan},
@@ -321,17 +321,18 @@ mod tests {
     fn simple_test() {
         let l_plan = analyze("SELECT col1 FROM table1");
 
-        let mut catalog = RefCell::new(Catalog::mem());
-        let storage = RefCell::new(StorageEngine::mem());
+        let mut catalog = Catalog::mem();
+        let storage = StorageEngine::mem();
 
         let ts = TableSchemaBuilder::public()
             .table("table1")
             .col("col1", DataType::Int)
             .build();
-        let _ = catalog.borrow_mut().register_table(&ts);
+        let _ = catalog.register_table(&ts);
         let cs = ts.get_column("col1").unwrap();
 
-        let optimizer = Optimizer::new(&catalog.borrow(), &storage.borrow());
+        let storage_rc = Rc::new(storage);
+        let optimizer = Optimizer::new(Rc::new(catalog), Rc::clone(&storage_rc));
 
         let p_plan = optimizer.optimize(l_plan);
 
@@ -340,7 +341,7 @@ mod tests {
             PhysicalPlan {
                 root: Op::project(
                     vec![Column::new(&cs)],
-                    vec![Op::full_scan("table1", &storage.borrow())]
+                    vec![Op::full_scan("table1", Rc::clone(&storage_rc))]
                 )
             }
         );
@@ -350,16 +351,16 @@ mod tests {
     fn execute_pipeline() {
         let l_plan = analyze("SELECT col1 FROM table1");
 
-        let mut catalog = RefCell::new(Catalog::mem());
-        let mut storage = RefCell::new(StorageEngine::mem());
+        let mut catalog = Catalog::mem();
+        let mut storage = StorageEngine::mem();
 
         let ts = TableSchemaBuilder::public()
             .table("table1")
             .col("col1", DataType::Int)
             .build();
-        let _ = catalog.borrow_mut().register_table(&ts);
+        let _ = catalog.register_table(&ts);
 
-        storage.borrow_mut().insert(
+        storage.insert(
             "table1",
             vec![
                 Tuple::new(vec![("col1", Val::Int(1))]),
@@ -369,7 +370,10 @@ mod tests {
             ],
         );
 
-        let optimizer = Optimizer::new(&catalog.borrow(), &storage.borrow());
+        let catalog_rc = Rc::new(catalog);
+        let storage_rc = Rc::new(storage);
+
+        let optimizer = Optimizer::new(Rc::clone(&catalog_rc), Rc::clone(&storage_rc));
 
         let mut p_plan = optimizer.optimize(l_plan);
 
