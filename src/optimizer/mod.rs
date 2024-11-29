@@ -8,7 +8,7 @@ use crate::{
     catalog::{Catalog, ColumnSchema, TableId},
 };
 
-struct Optimizer {
+pub struct Optimizer {
     catalog: Rc<Catalog>,
     storage: Rc<StorageEngine>,
 }
@@ -191,22 +191,26 @@ struct FullScanIterator {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-struct Tuple {
+pub struct Tuple {
     data: HashMap<String, Val>,
 }
 
 impl Tuple {
-    fn new(data: Vec<(&str, Val)>) -> Tuple {
+    pub fn new(data: Vec<(&str, Val)>) -> Tuple {
         let mut map = HashMap::new();
         for (k, v) in data {
             map.insert(k.to_string(), v);
         }
         Tuple { data: map }
     }
+
+    pub fn get(&self, key: &str) -> &Val {
+        self.data.get(key).unwrap()
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
-enum Val {
+pub enum Val {
     Int(i32),
     String(String),
     Bool(bool),
@@ -214,24 +218,24 @@ enum Val {
 }
 
 #[derive(Debug, PartialEq)] // TODO: remove PartialEq
-enum StorageEngine {
+pub enum StorageEngine {
     Memory(MemoryStorageEngine),
 }
 
 impl StorageEngine {
-    fn mem() -> StorageEngine {
+    pub fn mem() -> StorageEngine {
         StorageEngine::Memory(MemoryStorageEngine {
             tables: HashMap::new(),
         })
     }
 
-    fn scan(&self, table_name: &str) -> Vec<Tuple> {
+    pub fn scan(&self, table_name: &str) -> Vec<Tuple> {
         match self {
             StorageEngine::Memory(engine) => engine.tables.get(table_name).unwrap().clone(),
         }
     }
 
-    fn insert(&mut self, table_name: &str, tuples: Vec<Tuple>) {
+    pub fn insert(&mut self, table_name: &str, tuples: Vec<Tuple>) {
         match self {
             StorageEngine::Memory(engine) => {
                 engine.tables.insert(table_name.to_string(), tuples);
@@ -246,12 +250,12 @@ struct MemoryStorageEngine {
 }
 
 #[derive(Debug, PartialEq)]
-struct PhysicalPlan {
+pub struct PhysicalPlan {
     root: Op,
 }
 
 impl PhysicalPlan {
-    fn execute_all(&mut self) -> Vec<Tuple> {
+    pub fn execute_all(&mut self) -> Vec<Tuple> {
         let mut tuples = Vec::new();
         self.root.open();
         while let Some(t) = self.root.next() {
