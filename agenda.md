@@ -5,21 +5,12 @@
 
 
 Today we are going to:
-- [ ] write simple CLI for the database
+- [ ] write simple TUI for the database
+  - [ ] cargo workspace
+
 ```bash
 > just-db
-just-db> create table t1 (col1 int, col2 int)
-ok
-just-db> select * from t1
-| col1 | col2 |
-|------|------|
-|      |      |
-just-db> insert into t1 values (1, 2)
-ok
-just-db> select * from t1
-| col1 | col2 |
-|------|------|
-| 1    | 2    |
+
 
 
 ```
