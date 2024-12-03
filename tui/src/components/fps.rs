@@ -68,6 +68,10 @@ impl FpsCounter {
 }
 
 impl Component for FpsCounter {
+    fn name(&self) -> &str {
+        "fps_counter"
+    }
+
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
         match action {
             Action::Tick => self.app_tick()?,
@@ -78,14 +82,13 @@ impl Component for FpsCounter {
     }
 
     fn draw(&mut self, frame: &mut Frame, area: Rect) -> Result<()> {
-        let [top, _] = Layout::vertical([Constraint::Length(1), Constraint::Min(0)]).areas(area);
         let message = format!(
             "{:.2} ticks/sec, {:.2} FPS",
             self.ticks_per_second, self.frames_per_second
         );
         let span = Span::styled(message, Style::new().dim());
         let paragraph = Paragraph::new(span).right_aligned();
-        frame.render_widget(paragraph, top);
+        frame.render_widget(paragraph, area);
         Ok(())
     }
 }

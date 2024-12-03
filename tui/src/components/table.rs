@@ -6,24 +6,21 @@ use super::Component;
 use crate::{action::Action, config::Config};
 
 #[derive(Default)]
-pub struct Home {
+pub struct Table {
     command_tx: Option<UnboundedSender<Action>>,
     config: Config,
-    tick_cnt: u64,
-    render_cnt: u64,
 }
 
-impl Home {
+impl Table {
     pub fn new() -> Self {
         Self::default()
     }
 }
 
-impl Component for Home {
+impl Component for Table {
     fn name(&self) -> &str {
-        "home"
+        "table"
     }
-
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
         self.command_tx = Some(tx);
         Ok(())
@@ -38,11 +35,9 @@ impl Component for Home {
         match action {
             Action::Tick => {
                 // add any logic here that should run on every tick
-                self.tick_cnt += 1;
             }
             Action::Render => {
                 // add any logic here that should run on every render
-                self.render_cnt += 1;
             }
             _ => {}
         }
@@ -50,10 +45,7 @@ impl Component for Home {
     }
 
     fn draw(&mut self, frame: &mut Frame, area: Rect) -> Result<()> {
-        let text = format!(
-            "Hello World! Tick Count: {}, Render Count: {}",
-            self.tick_cnt, self.render_cnt
-        );
+        let text = format!("AM AM A TABLE!!!! TRUST ME!!");
 
         let block = Block::default().borders(Borders::ALL);
 

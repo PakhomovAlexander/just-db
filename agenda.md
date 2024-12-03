@@ -5,8 +5,8 @@
 
 
 Today we are going to:
-- [ ] write simple TUI for the database
-  - [ ] cargo workspace
+- [ ] write TUI for the database 
+  - [x] cargo workspace
 
 ```bash
 > just-db
