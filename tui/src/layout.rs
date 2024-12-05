@@ -21,8 +21,8 @@ impl AppLayout {
             .split(frame.size());
 
         let mut areas = HashMap::new();
-        areas.insert("home".to_string(), outer_layout[0]);
-        areas.insert("table".to_string(), outer_layout[1]);
+        areas.insert("table".to_string(), outer_layout[0]);
+        areas.insert("editor".to_string(), outer_layout[1]);
         areas.insert("fps_counter".to_string(), outer_layout[2]);
 
         Self { areas }

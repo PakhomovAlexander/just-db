@@ -3,6 +3,9 @@
 use core::panic;
 use std::{collections::HashMap, rc::Rc};
 
+use serde::{Deserialize, Serialize};
+use strum::Display;
+
 use crate::{
     analyzer::{LogicalNode, LogicalPlan, Operator},
     catalog::{Catalog, ColumnSchema, TableId},
@@ -190,7 +193,7 @@ struct FullScanIterator {
     tuples: Vec<Tuple>,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Eq, Serialize, Deserialize)]
 pub struct Tuple {
     data: HashMap<String, Val>,
 }
@@ -207,9 +210,13 @@ impl Tuple {
     pub fn get(&self, key: &str) -> &Val {
         self.data.get(key).unwrap()
     }
+
+    pub fn keys(&self) -> Vec<String> {
+        self.data.keys().cloned().collect()
+    }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Eq, Display, Serialize, Deserialize)]
 pub enum Val {
     Int(i32),
     String(String),

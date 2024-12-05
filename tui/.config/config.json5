@@ -1,10 +1,15 @@
 {
   "keybindings": {
-    "Home": {
+    "Normal": {
       "<q>": "Quit", // Quit the application
+      "<a>": "D", // Quit the application
+      "<i>": "ToEditingMode",
       "<Ctrl-d>": "Quit", // Another way to quit
       "<Ctrl-c>": "Quit", // Yet another way to quit
       "<Ctrl-z>": "Suspend" // Suspend the application
+    },
+    "Typing": {
+      "<esc>": "ToNormalMode", // Quit the application
     },
   }
 }

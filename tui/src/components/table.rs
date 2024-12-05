@@ -1,4 +1,7 @@
+use std::rc::Rc;
+
 use color_eyre::Result;
+use db::optimizer::{Tuple, Val};
 use ratatui::{prelude::*, widgets::*};
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -9,6 +12,7 @@ use crate::{action::Action, config::Config};
 pub struct Table {
     command_tx: Option<UnboundedSender<Action>>,
     config: Config,
+    current_data: Option<Vec<Tuple>>,
 }
 
 impl Table {
@@ -33,11 +37,8 @@ impl Component for Table {
 
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
         match action {
-            Action::Tick => {
-                // add any logic here that should run on every tick
-            }
-            Action::Render => {
-                // add any logic here that should run on every render
+            Action::QueryResultReceived(data) => {
+                self.current_data = Some(data);
             }
             _ => {}
         }
@@ -45,11 +46,75 @@ impl Component for Table {
     }
 
     fn draw(&mut self, frame: &mut Frame, area: Rect) -> Result<()> {
-        let text = format!("AM AM A TABLE!!!! TRUST ME!!");
+        let table = InnerTable::new(self.current_data.clone());
 
-        let block = Block::default().borders(Borders::ALL);
-
-        frame.render_widget(Paragraph::new(text).block(block), area);
+        frame.render_widget(table.build_widget(), area);
         Ok(())
+    }
+}
+
+struct InnerTable<'a> {
+    rows: Vec<Row<'a>>,
+    widths: Vec<Constraint>,
+    column_spacing: u16,
+    style: Style,
+    header: Option<Row<'a>>,
+}
+
+impl<'a> InnerTable<'a> {
+    fn new(data: Option<Vec<Tuple>>) -> Self {
+        let header: Vec<String> = match &data {
+            Some(data) => data[0].keys(),
+            None => Vec::new(),
+        };
+
+        let rows = match &data {
+            Some(data) => {
+                let mut rows = Vec::new();
+                for tuple in data.iter() {
+                    rows.push(tuple_to_row(tuple.clone(), header.clone()));
+                }
+                rows
+            }
+            None => Vec::new(),
+        };
+
+        Self {
+            rows,
+            widths: Vec::new(),
+            column_spacing: 1,
+            style: Style::default(),
+            header: Some(Row::new(header)),
+        }
+    }
+
+    fn build_widget(self) -> ratatui::widgets::Table<'a> {
+        use ratatui::widgets::Table;
+
+        Table::default()
+            .rows(self.rows)
+            .header(self.header.unwrap())
+            .widths(self.widths)
+            .column_spacing(self.column_spacing)
+            .style(self.style)
+    }
+}
+
+fn tuple_to_row<'a>(tuple: Tuple, header: Vec<String>) -> Row<'a> {
+    let cells: Vec<String> = header
+        .iter()
+        .map(|cell| val_to_sting(tuple.get(cell).clone()))
+        .collect();
+
+    Row::new(cells)
+}
+
+// TODO: implement display for Val
+fn val_to_sting(v: Val) -> String {
+    match v {
+        Val::Int(i) => i.to_string(),
+        Val::String(s) => s,
+        Val::Bool(b) => b.to_string(),
+        Val::Null => "NULL".to_string(),
     }
 }

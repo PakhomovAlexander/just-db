@@ -1,3 +1,5 @@
+use crossterm::event::KeyEvent;
+use db::optimizer::Tuple;
 use serde::{Deserialize, Serialize};
 use strum::Display;
 
@@ -12,4 +14,13 @@ pub enum Action {
     ClearScreen,
     Error(String),
     Help,
+
+    D,
+
+    ToEditingMode,
+    ToNormalMode,
+
+    Typed(KeyEvent),
+
+    QueryResultReceived(Vec<Tuple>),
 }

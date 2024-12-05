@@ -1,15 +1,16 @@
 use std::borrow::Borrow;
 
-use color_eyre::Result;
+use color_eyre::{eyre, Result};
 use crossterm::event::KeyEvent;
+use db::optimizer::{Tuple, Val};
 use ratatui::prelude::Rect;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tracing::{debug, info};
 
 use crate::{
-    action::Action,
-    components::{fps::FpsCounter, home::Home, table::Table, Component},
+    action::{self, Action},
+    components::{editor::Editor, fps::FpsCounter, table::Table, Component},
     config::Config,
     layout::AppLayout,
     tui::{Event, Tui},
@@ -30,8 +31,9 @@ pub struct App {
 
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Mode {
+    Typing,
     #[default]
-    Home,
+    Normal,
 }
 
 impl App {
@@ -42,14 +44,14 @@ impl App {
             tick_rate,
             frame_rate,
             components: vec![
-                Box::new(Home::new()),
+                Box::new(Editor::new()),
                 Box::new(Table::new()),
                 Box::new(FpsCounter::default()),
             ],
             should_quit: false,
             should_suspend: false,
             config: Config::new()?,
-            mode: Mode::Home,
+            mode: Mode::Normal,
             last_tick_key_events: Vec::new(),
             action_tx,
             action_rx,
@@ -116,12 +118,50 @@ impl App {
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<()> {
         let action_tx = self.action_tx.clone();
         let Some(keymap) = self.config.keybindings.get(&self.mode) else {
-            return Ok(());
+            eyre::bail!("No such mode in keymap");
         };
+
+        if self.mode == Mode::Typing {
+            match keymap.get(&vec![key]) {
+                Some(Action::ToNormalMode) => {
+                    self.mode = Mode::Normal;
+                }
+                _ => {}
+            };
+            action_tx.send(Action::Typed(key))?;
+            return Ok(());
+        }
+
         match keymap.get(&vec![key]) {
             Some(action) => {
                 info!("Got action: {action:?}");
-                action_tx.send(action.clone())?;
+                if *action == Action::D {
+                    let a = Action::QueryResultReceived(vec![
+                        Tuple::new(vec![
+                            ("col1", Val::Int(1)),
+                            ("col2", Val::String("Hii1".to_string())),
+                            ("col3", Val::Int(111)),
+                        ]),
+                        Tuple::new(vec![
+                            ("col1", Val::Int(2)),
+                            ("col2", Val::String("Hii2".to_string())),
+                            ("col3", Val::Int(222)),
+                        ]),
+                        Tuple::new(vec![
+                            ("col1", Val::Int(3)),
+                            ("col2", Val::String("Hii3".to_string())),
+                            ("col3", Val::Int(333)),
+                        ]),
+                        Tuple::new(vec![
+                            ("col1", Val::Int(4)),
+                            ("col2", Val::String("Hii4".to_string())),
+                            ("col3", Val::Int(444)),
+                        ]),
+                    ]);
+                    action_tx.send(a.clone())?;
+                } else {
+                    action_tx.send(action.clone())?;
+                }
             }
             _ => {
                 // If the key was not handled as a single key action,
@@ -153,6 +193,8 @@ impl App {
                 Action::ClearScreen => tui.terminal.clear()?,
                 Action::Resize(w, h) => self.handle_resize(tui, w, h)?,
                 Action::Render => self.render(tui)?,
+                Action::ToEditingMode => self.mode = Mode::Typing,
+                Action::ToNormalMode => self.mode = Mode::Normal,
                 _ => {}
             }
             for component in self.components.iter_mut() {
