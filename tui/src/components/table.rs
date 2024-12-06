@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use color_eyre::Result;
 use db::optimizer::{Tuple, Val};
 use ratatui::{prelude::*, widgets::*};

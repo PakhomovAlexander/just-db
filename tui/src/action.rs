@@ -21,6 +21,9 @@ pub enum Action {
     ToNormalMode,
 
     Typed(KeyEvent),
+    TextUpdated(String),
 
     QueryResultReceived(Vec<Tuple>),
+    ExecuteQueryRequested,
+    ExecuteQuery(String),
 }

@@ -8,7 +8,8 @@ Today we are going to:
 - [ ] write TUI for the database 
   - [x] cargo workspace
   - [x] draw real table 
-  - [ ] draw editor <- 
+  - [x] draw editor <- 
+  - [ ] use real tables in TUI
 
 ```bash
 > just-db

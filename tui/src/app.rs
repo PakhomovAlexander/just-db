@@ -2,6 +2,7 @@ use std::borrow::Borrow;
 
 use color_eyre::{eyre, Result};
 use crossterm::event::KeyEvent;
+use db::embedded::Db;
 use db::optimizer::{Tuple, Val};
 use ratatui::prelude::Rect;
 use serde::{Deserialize, Serialize};
@@ -27,6 +28,8 @@ pub struct App {
     last_tick_key_events: Vec<KeyEvent>,
     action_tx: mpsc::UnboundedSender<Action>,
     action_rx: mpsc::UnboundedReceiver<Action>,
+    current_text_in_editor: String,
+    db: Db,
 }
 
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -53,6 +56,8 @@ impl App {
             config: Config::new()?,
             mode: Mode::Normal,
             last_tick_key_events: Vec::new(),
+            db: Db::new(),
+            current_text_in_editor: String::new(),
             action_tx,
             action_rx,
         })
@@ -183,7 +188,7 @@ impl App {
             if action != Action::Tick && action != Action::Render {
                 debug!("{action:?}");
             }
-            match action {
+            match &action {
                 Action::Tick => {
                     self.last_tick_key_events.drain(..);
                 }
@@ -191,10 +196,23 @@ impl App {
                 Action::Suspend => self.should_suspend = true,
                 Action::Resume => self.should_suspend = false,
                 Action::ClearScreen => tui.terminal.clear()?,
-                Action::Resize(w, h) => self.handle_resize(tui, w, h)?,
+                Action::Resize(w, h) => self.handle_resize(tui, *w, *h)?,
                 Action::Render => self.render(tui)?,
                 Action::ToEditingMode => self.mode = Mode::Typing,
                 Action::ToNormalMode => self.mode = Mode::Normal,
+                Action::TextUpdated(text) => {
+                    self.current_text_in_editor = text.clone();
+                }
+                Action::ExecuteQueryRequested => {
+                    let query = self.current_text_in_editor.clone();
+                    let execute_query = Action::ExecuteQuery(query.to_string());
+                    self.action_tx.send(execute_query)?;
+                }
+                Action::ExecuteQuery(query) => {
+                    let tuples = self.db.run_query(&query.clone());
+                    let query_result_received = Action::QueryResultReceived(tuples);
+                    self.action_tx.send(query_result_received)?;
+                }
                 _ => {}
             }
             for component in self.components.iter_mut() {

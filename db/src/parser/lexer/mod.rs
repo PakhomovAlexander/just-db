@@ -203,8 +203,8 @@ impl<'a> Lexer<'a> {
 
         let word = &self.input[started_position..self.get_last_token_end()];
 
-        let binding = dbg!(word.to_lowercase());
-        let lower_case_word = dbg!(binding.as_str());
+        let binding = word.to_lowercase();
+        let lower_case_word = binding.as_str();
 
         match lower_case_word {
             "select" => Some(Ok(Token::Select)),
