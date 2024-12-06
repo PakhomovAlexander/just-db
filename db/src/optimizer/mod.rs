@@ -309,7 +309,7 @@ struct FilterInfo {}
 
 #[cfg(test)]
 mod tests {
-    use std::{borrow::Borrow, cell::RefCell, rc::Rc, vec};
+    use std::{rc::Rc, vec};
 
     use crate::{
         analyzer::{Analyzer, LogicalPlan},

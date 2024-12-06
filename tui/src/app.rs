@@ -10,7 +10,7 @@ use tokio::sync::mpsc;
 use tracing::{debug, info};
 
 use crate::{
-    action::{self, Action},
+    action::{Action},
     components::{editor::Editor, fps::FpsCounter, table::Table, Component},
     config::Config,
     layout::AppLayout,
@@ -127,11 +127,8 @@ impl App {
         };
 
         if self.mode == Mode::Typing {
-            match keymap.get(&vec![key]) {
-                Some(Action::ToNormalMode) => {
-                    self.mode = Mode::Normal;
-                }
-                _ => {}
+            if let Some(Action::ToNormalMode) = keymap.get(&vec![key]) {
+                self.mode = Mode::Normal;
             };
             action_tx.send(Action::Typed(key))?;
             return Ok(());

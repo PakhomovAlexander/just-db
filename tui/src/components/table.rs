@@ -34,11 +34,8 @@ impl Component for Table {
     }
 
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
-        match action {
-            Action::QueryResultReceived(data) => {
-                self.current_data = Some(data);
-            }
-            _ => {}
+        if let Action::QueryResultReceived(data) = action {
+            self.current_data = Some(data);
         }
         Ok(None)
     }
