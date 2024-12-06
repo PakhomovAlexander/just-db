@@ -14,6 +14,12 @@ pub struct Db {
     optimizer: Optimizer,
 }
 
+impl Default for Db {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Db {
     pub fn new() -> Self {
         let mut catalog = Catalog::mem();
