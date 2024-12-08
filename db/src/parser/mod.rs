@@ -2,6 +2,7 @@
 
 pub mod lexer;
 
+use crate::types::ColType;
 use lexer::tokens::Token;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -15,13 +16,6 @@ pub enum Literal {
     },
     Float(f32),
     Bool(bool),
-}
-
-#[derive(Debug, PartialEq, Clone, Copy)]
-pub enum Type {
-    Int,
-    String,
-    Bool,
 }
 
 impl Literal {
@@ -60,7 +54,7 @@ impl Literal {
 #[derive(Debug, PartialEq, Clone)]
 pub enum Node {
     Leaf(Literal),
-    LeafType(Type),
+    LeafType(ColType),
 
     Infix(Op, Vec<Node>),
     Prefix(Op, Vec<Node>),
@@ -89,6 +83,13 @@ impl Node {
     pub fn literal(&self) -> Option<Literal> {
         match self {
             Node::Leaf(literal) => Some(literal.clone()),
+            _ => None,
+        }
+    }
+
+    pub fn ttype(&self) -> Option<ColType> {
+        match self {
+            Node::LeafType(typ) => Some(*typ),
             _ => None,
         }
     }
@@ -273,7 +274,7 @@ impl<'a> Parser<'a> {
                         Some(Ok(Token::Int)) => {
                             columns.push(Node::Infix(
                                 Op::ColumnDefinition,
-                                vec![Node::Leaf(column_name), Node::LeafType(Type::Int)],
+                                vec![Node::Leaf(column_name), Node::LeafType(ColType::Int)],
                             ));
                         }
                         s => panic!("Unexpected token: {:?}", s),
@@ -448,7 +449,7 @@ impl<'a> Parser<'a> {
 mod tests {
     use crate::parser::{Literal, Node, Op, Parser};
 
-    use super::{lexer::Lexer, Type};
+    use super::{lexer::Lexer, ColType};
     use pretty_assertions::assert_eq;
 
     fn id(identifier: &str) -> Literal {
@@ -467,7 +468,7 @@ mod tests {
         Node::Leaf(literal)
     }
 
-    fn leaf_type(typ: Type) -> Node {
+    fn leaf_type(typ: ColType) -> Node {
         Node::LeafType(typ)
     }
 
@@ -764,7 +765,11 @@ mod tests {
             prefix_chain(
                 Op::CreateTable,
                 leaf(id("table1")),
-                infix(Op::ColumnDefinition, leaf(id("col1")), leaf_type(Type::Int))
+                infix(
+                    Op::ColumnDefinition,
+                    leaf(id("col1")),
+                    leaf_type(ColType::Int)
+                )
             )
         );
     }
@@ -784,8 +789,16 @@ mod tests {
                 leaf(id("table1")),
                 infix(
                     Op::Comma,
-                    infix(Op::ColumnDefinition, leaf(id("col1")), leaf_type(Type::Int)),
-                    infix(Op::ColumnDefinition, leaf(id("col2")), leaf_type(Type::Int))
+                    infix(
+                        Op::ColumnDefinition,
+                        leaf(id("col1")),
+                        leaf_type(ColType::Int)
+                    ),
+                    infix(
+                        Op::ColumnDefinition,
+                        leaf(id("col2")),
+                        leaf_type(ColType::Int)
+                    )
                 )
             )
         );
@@ -808,9 +821,21 @@ mod tests {
                 infix_vec(
                     Op::Comma,
                     vec![
-                        infix(Op::ColumnDefinition, leaf(id("col1")), leaf_type(Type::Int)),
-                        infix(Op::ColumnDefinition, leaf(id("col2")), leaf_type(Type::Int)),
-                        infix(Op::ColumnDefinition, leaf(id("col3")), leaf_type(Type::Int))
+                        infix(
+                            Op::ColumnDefinition,
+                            leaf(id("col1")),
+                            leaf_type(ColType::Int)
+                        ),
+                        infix(
+                            Op::ColumnDefinition,
+                            leaf(id("col2")),
+                            leaf_type(ColType::Int)
+                        ),
+                        infix(
+                            Op::ColumnDefinition,
+                            leaf(id("col3")),
+                            leaf_type(ColType::Int)
+                        )
                     ]
                 )
             )

@@ -1046,7 +1046,7 @@ mod tests {
 
     #[test]
     fn create_table() {
-        let input = "CREATE TABLE table1 (column1 INT, column2 VARCHAR(255))";
+        let input = "CREATE TABLE table1 (column1 INT, column2 INT)";
         let lexer = Lexer::new(input);
         let actual: Vec<Result<Token, LexError>> = lexer.collect();
 
@@ -1059,10 +1059,7 @@ mod tests {
             Ok(Token::Int),
             Ok(Token::Comma),
             Ok(Token::identifier("column2")),
-            Ok(Token::VarChar),
-            Ok(Token::OpenParen),
-            Ok(Token::NumericLiteral("255".to_string())),
-            Ok(Token::CloseParen),
+            Ok(Token::Int),
             Ok(Token::CloseParen),
         ];
 

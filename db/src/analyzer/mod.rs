@@ -1,7 +1,10 @@
 use core::panic;
 use std::fmt::Display;
 
-use crate::parser::{Literal, Node, Op};
+use crate::{
+    parser::{Literal, Node, Op},
+    types::ColType,
+};
 
 //#[allow(clippy::unused)]
 #[allow(dead_code)]
@@ -42,7 +45,7 @@ pub enum Operator {
     Const(Constant),
     Col(Column),
 
-    CreateTeble(),
+    CreateTable(CreateTableInfo),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -58,7 +61,7 @@ pub struct Column {
 #[derive(Debug, PartialEq, Clone)]
 pub struct ColumnDefinition {
     pub column_name: String,
-    pub data_type: String,
+    pub column_type: ColType,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -102,6 +105,12 @@ pub struct LimitInfo {}
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct DistinctInfo {}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct CreateTableInfo {
+    pub table_name: String,
+    pub columns: Vec<ColumnDefinition>,
+}
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct LogicalNode {
@@ -188,6 +197,12 @@ impl Analyzer {
                 let mut walker = WhereWalker::new();
 
                 vec![walker.walk(node)]
+            }
+            Some(Op::CreateTable) => {
+                let children = node.children();
+                let mut walker = CreateTableWalker::new();
+
+                vec![walker.walk(&node)]
             }
             None => {
                 panic!("unexpected node: {:?}", node);
@@ -325,6 +340,72 @@ impl WhereWalker {
     }
 }
 
+struct CreateTableWalker {}
+
+impl CreateTableWalker {
+    fn new() -> Self {
+        CreateTableWalker {}
+    }
+
+    fn walk(&mut self, node: &Node) -> LogicalNode {
+        let children = node.children();
+        let table_name = match children[0].literal().unwrap() {
+            Literal::Identifier {
+                first_name,
+                second_name: _,
+                third_name: _,
+            } => first_name,
+            _ => panic!("unexpected node: {:?}", node),
+        };
+        let columns = &children[1];
+
+        return LogicalNode {
+            op: Operator::CreateTable(CreateTableInfo {
+                table_name: table_name.to_string(),
+                columns: self.walk_column_definition(columns),
+            }),
+            children: vec![],
+        };
+    }
+
+    fn walk_column_definition(&mut self, node: &Node) -> Vec<ColumnDefinition> {
+        match node.op() {
+            Some(Op::ColumnDefinition) => {
+                let children = node.children();
+                let column_name = match children[0].literal().unwrap() {
+                    Literal::Identifier {
+                        first_name,
+                        second_name: _,
+                        third_name: _,
+                    } => first_name,
+                    _ => panic!("unexpected node: {:?}", node),
+                };
+
+                let column_type = children[1].ttype().unwrap();
+
+                vec![ColumnDefinition {
+                    column_name,
+                    column_type,
+                }]
+            }
+            Some(Op::Comma) => {
+                let columns_nodes = node.children();
+                let mut columns = vec![];
+                for column_node in columns_nodes {
+                    columns.append(&mut self.walk_column_definition(&column_node));
+                }
+
+                columns
+            }
+            None => {
+                panic!("unexpected node: {:?}", node);
+            }
+            n => {
+                panic!("unexpected node: {:?}", n);
+            }
+        }
+    }
+}
 #[cfg(test)]
 mod tests {
     use crate::{
@@ -346,6 +427,20 @@ mod tests {
 
     fn project(columns: Vec<Column>) -> Operator {
         Operator::Projec(ProjectInfo { columns })
+    }
+
+    fn col_def(column_name: &str, column_type: ColType) -> ColumnDefinition {
+        ColumnDefinition {
+            column_name: column_name.to_string(),
+            column_type,
+        }
+    }
+
+    fn create_table(table_name: &str, columns: Vec<ColumnDefinition>) -> Operator {
+        Operator::CreateTable(CreateTableInfo {
+            table_name: table_name.to_string(),
+            columns,
+        })
     }
 
     fn read(table: Table) -> Operator {
@@ -465,10 +560,20 @@ mod tests {
     }
 
     #[test]
-    fn create_table() {
+    fn create_table_test() {
         assert_eq!(
             analyze("CREATE TABLE table1 (col1 INT, col2 INT, col3 INT)"),
-            plan(node(project(vec![]), vec![leaf(read(table("table1")))]))
+            plan(node(
+                create_table(
+                    "table1",
+                    vec![
+                        col_def("col1", ColType::Int),
+                        col_def("col2", ColType::Int),
+                        col_def("col3", ColType::Int)
+                    ]
+                ),
+                vec![]
+            ))
         );
     }
 }
