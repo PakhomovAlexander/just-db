@@ -5,18 +5,8 @@
 
 
 Today we are going to:
-- [ ] write TUI for the database 
-  - [x] cargo workspace
-  - [x] draw real table 
-  - [x] draw editor <- 
-  - [ ] use real tables in TUI
+- [ ] support CREATE TABLE statement 
 
-```bash
-> just-db
-
-
-
-```
 
 --
 - [ ] design storage API

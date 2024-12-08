@@ -1043,4 +1043,29 @@ mod tests {
         let expected = None;
         assert_eq!(actual, expected);
     }
+
+    #[test]
+    fn create_table() {
+        let input = "CREATE TABLE table1 (column1 INT, column2 VARCHAR(255))";
+        let lexer = Lexer::new(input);
+        let actual: Vec<Result<Token, LexError>> = lexer.collect();
+
+        let expected = vec![
+            Ok(Token::Create),
+            Ok(Token::Table),
+            Ok(Token::identifier("table1")),
+            Ok(Token::OpenParen),
+            Ok(Token::identifier("column1")),
+            Ok(Token::Int),
+            Ok(Token::Comma),
+            Ok(Token::identifier("column2")),
+            Ok(Token::VarChar),
+            Ok(Token::OpenParen),
+            Ok(Token::NumericLiteral("255".to_string())),
+            Ok(Token::CloseParen),
+            Ok(Token::CloseParen),
+        ];
+
+        assert_eq!(actual, expected);
+    }
 }

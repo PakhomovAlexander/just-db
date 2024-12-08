@@ -41,6 +41,8 @@ pub enum Operator {
 
     Const(Constant),
     Col(Column),
+
+    CreateTeble(),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -51,6 +53,12 @@ pub struct ProjectInfo {
 #[derive(Debug, PartialEq, Clone)]
 pub struct Column {
     pub column_name: String,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct ColumnDefinition {
+    pub column_name: String,
+    pub data_type: String,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -453,6 +461,14 @@ mod tests {
                     vec![leaf(read(table("table1")))]
                 ),]
             ))
+        );
+    }
+
+    #[test]
+    fn create_table() {
+        assert_eq!(
+            analyze("CREATE TABLE table1 (col1 INT, col2 INT, col3 INT)"),
+            plan(node(project(vec![]), vec![leaf(read(table("table1")))]))
         );
     }
 }
