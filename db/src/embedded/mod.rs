@@ -2,8 +2,8 @@ use std::rc::Rc;
 
 use crate::{
     analyzer::Analyzer,
-    catalog::{Catalog, DataType, TableSchemaBuilder},
-    optimizer::{Optimizer, StorageEngine, Tuple, Val},
+    catalog::{types::DataType, Catalog, TableSchemaBuilder},
+    optimizer::{types::StorageEngine, types::Tuple, types::Val, Optimizer},
     parser::{Lexer, Parser},
 };
 

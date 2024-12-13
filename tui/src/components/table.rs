@@ -1,5 +1,5 @@
 use color_eyre::Result;
-use db::optimizer::{Tuple, Val};
+use db::optimizer::types::{Tuple, Val};
 use ratatui::{prelude::*, widgets::*};
 use tokio::sync::mpsc::UnboundedSender;
 

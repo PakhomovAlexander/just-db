@@ -1,5 +1,5 @@
 use crossterm::event::KeyEvent;
-use db::optimizer::Tuple;
+use db::optimizer::types::Tuple;
 use serde::{Deserialize, Serialize};
 use strum::Display;
 

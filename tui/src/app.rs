@@ -3,14 +3,14 @@ use std::borrow::Borrow;
 use color_eyre::{eyre, Result};
 use crossterm::event::KeyEvent;
 use db::embedded::Db;
-use db::optimizer::{Tuple, Val};
+use db::optimizer::types::{Tuple, Val};
 use ratatui::prelude::Rect;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tracing::{debug, info};
 
 use crate::{
-    action::{Action},
+    action::Action,
     components::{editor::Editor, fps::FpsCounter, table::Table, Component},
     config::Config,
     layout::AppLayout,
