@@ -2,7 +2,7 @@ use core::panic;
 use std::fmt::Display;
 
 use crate::{
-    parser::{Literal, Node, Op},
+    parser::tree::{Literal, Node, Op},
     types::ColType,
 };
 
@@ -410,7 +410,7 @@ impl CreateTableWalker {
 mod tests {
     use crate::{
         analyzer::*,
-        parser::{lexer::Lexer, Parser},
+        parser::{Lexer, Parser},
     };
 
     fn column(column_name: &str) -> Column {

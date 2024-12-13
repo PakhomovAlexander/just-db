@@ -315,7 +315,7 @@ mod tests {
         analyzer::{Analyzer, LogicalPlan},
         catalog::{Catalog, DataType, TableSchemaBuilder},
         optimizer::{Column, Op, StorageEngine, Tuple, Val},
-        parser::{lexer::Lexer, Parser},
+        parser::{Lexer, Parser},
     };
 
     use super::{Optimizer, PhysicalPlan};

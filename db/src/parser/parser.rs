@@ -1,138 +1,15 @@
-#![allow(dead_code)]
+use crate::parser::lexer::Lexer;
+use crate::parser::lexer::Token;
+use crate::types::ColType;
 
-pub mod lexer;
-
-use lexer::tokens::Token;
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum Literal {
-    Numeric(i32),
-    String(String),
-    Identifier {
-        first_name: String,
-        second_name: Option<String>,
-        third_name: Option<String>,
-    },
-    Float(f32),
-    Bool(bool),
-}
-
-#[derive(Debug, PartialEq, Clone, Copy)]
-pub enum Type {
-    Int,
-    String,
-    Bool,
-}
-
-impl Literal {
-    fn numeric(i: String) -> Literal {
-        Literal::Numeric(i.parse().unwrap())
-    }
-
-    fn string(s: String) -> Literal {
-        Literal::String(s)
-    }
-
-    fn identifier(identifier: &str) -> Literal {
-        let parts: Vec<&str> = identifier.split('.').collect();
-
-        match parts.len() {
-            1 => Literal::Identifier {
-                first_name: parts[0].to_string(),
-                second_name: None,
-                third_name: None,
-            },
-            2 => Literal::Identifier {
-                first_name: parts[0].to_string(),
-                second_name: Some(parts[1].to_string()),
-                third_name: None,
-            },
-            3 => Literal::Identifier {
-                first_name: parts[0].to_string(),
-                second_name: Some(parts[1].to_string()),
-                third_name: Some(parts[2].to_string()),
-            },
-            _ => panic!("Invalid identifier: {}", identifier),
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum Node {
-    Leaf(Literal),
-    LeafType(Type),
-
-    Infix(Op, Vec<Node>),
-    Prefix(Op, Vec<Node>),
-    Postfix(Op, Vec<Node>),
-}
-
-impl Node {
-    pub fn op(&self) -> Option<Op> {
-        match self {
-            Node::Infix(op, _) => Some(*op),
-            Node::Prefix(op, _) => Some(*op),
-            Node::Postfix(op, _) => Some(*op),
-            _ => None,
-        }
-    }
-
-    pub fn children(&self) -> Vec<Node> {
-        match self {
-            Node::Infix(_, children) => children.to_vec(),
-            Node::Prefix(_, children) => children.to_vec(),
-            Node::Postfix(_, children) => children.to_vec(),
-            _ => vec![],
-        }
-    }
-
-    pub fn literal(&self) -> Option<Literal> {
-        match self {
-            Node::Leaf(literal) => Some(literal.clone()),
-            _ => None,
-        }
-    }
-}
+use super::tree::{Literal, Node, Op};
 
 pub struct Parser<'a> {
-    lexer: lexer::Lexer<'a>,
-}
-
-#[derive(Debug, PartialEq, Copy, Clone)]
-pub enum Op {
-    And,
-    Or,
-
-    Plus,
-    Minus,
-    Multiply,
-    Divide,
-
-    Equals,
-    NotEquals,
-    LessThan,
-    GreaterThan,
-    LessThanOrEquals,
-    GreaterThanOrEquals,
-    Not,
-    CloseParen,
-    Comma,
-
-    Select,
-    From,
-    Where,
-
-    CreateTable,
-    DropTable,
-    InsertInto,
-
-    ColumnDefinition,
-    ColumnList,
-    Values,
+    lexer: Lexer<'a>,
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(lexer: lexer::Lexer<'a>) -> Self {
+    pub fn new(lexer: Lexer<'a>) -> Self {
         Parser { lexer }
     }
 
@@ -273,7 +150,7 @@ impl<'a> Parser<'a> {
                         Some(Ok(Token::Int)) => {
                             columns.push(Node::Infix(
                                 Op::ColumnDefinition,
-                                vec![Node::Leaf(column_name), Node::LeafType(Type::Int)],
+                                vec![Node::Leaf(column_name), Node::LeafType(ColType::Int)],
                             ));
                         }
                         s => panic!("Unexpected token: {:?}", s),
@@ -446,10 +323,17 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::parser::{Literal, Node, Op, Parser};
-
-    use super::{lexer::Lexer, Type};
     use pretty_assertions::assert_eq;
+
+    use crate::{
+        parser::{
+            tree::{Literal, Node, Op},
+            Lexer,
+        },
+        types::ColType,
+    };
+
+    use super::Parser;
 
     fn id(identifier: &str) -> Literal {
         Literal::identifier(identifier)
@@ -467,7 +351,7 @@ mod tests {
         Node::Leaf(literal)
     }
 
-    fn leaf_type(typ: Type) -> Node {
+    fn leaf_type(typ: ColType) -> Node {
         Node::LeafType(typ)
     }
 
@@ -764,7 +648,11 @@ mod tests {
             prefix_chain(
                 Op::CreateTable,
                 leaf(id("table1")),
-                infix(Op::ColumnDefinition, leaf(id("col1")), leaf_type(Type::Int))
+                infix(
+                    Op::ColumnDefinition,
+                    leaf(id("col1")),
+                    leaf_type(ColType::Int)
+                )
             )
         );
     }
@@ -784,8 +672,16 @@ mod tests {
                 leaf(id("table1")),
                 infix(
                     Op::Comma,
-                    infix(Op::ColumnDefinition, leaf(id("col1")), leaf_type(Type::Int)),
-                    infix(Op::ColumnDefinition, leaf(id("col2")), leaf_type(Type::Int))
+                    infix(
+                        Op::ColumnDefinition,
+                        leaf(id("col1")),
+                        leaf_type(ColType::Int)
+                    ),
+                    infix(
+                        Op::ColumnDefinition,
+                        leaf(id("col2")),
+                        leaf_type(ColType::Int)
+                    )
                 )
             )
         );
@@ -808,9 +704,21 @@ mod tests {
                 infix_vec(
                     Op::Comma,
                     vec![
-                        infix(Op::ColumnDefinition, leaf(id("col1")), leaf_type(Type::Int)),
-                        infix(Op::ColumnDefinition, leaf(id("col2")), leaf_type(Type::Int)),
-                        infix(Op::ColumnDefinition, leaf(id("col3")), leaf_type(Type::Int))
+                        infix(
+                            Op::ColumnDefinition,
+                            leaf(id("col1")),
+                            leaf_type(ColType::Int)
+                        ),
+                        infix(
+                            Op::ColumnDefinition,
+                            leaf(id("col2")),
+                            leaf_type(ColType::Int)
+                        ),
+                        infix(
+                            Op::ColumnDefinition,
+                            leaf(id("col3")),
+                            leaf_type(ColType::Int)
+                        )
                     ]
                 )
             )

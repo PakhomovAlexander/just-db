@@ -1,11 +1,5 @@
-pub mod tokens;
-
-use tokens::Token;
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum LexError {
-    InvalidCharacter(char),
-}
+use super::errors::LexError;
+use super::tokens::Token;
 
 pub struct Lexer<'a> {
     input: &'a str,
@@ -203,8 +197,8 @@ impl<'a> Lexer<'a> {
 
         let word = &self.input[started_position..self.get_last_token_end()];
 
-        let binding = dbg!(word.to_lowercase());
-        let lower_case_word = dbg!(binding.as_str());
+        let binding = word.to_lowercase();
+        let lower_case_word = binding.as_str();
 
         match lower_case_word {
             "select" => Some(Ok(Token::Select)),
@@ -1041,6 +1035,28 @@ mod tests {
 
         let actual = lexer.next();
         let expected = None;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn create_table() {
+        let input = "CREATE TABLE table1 (column1 INT, column2 INT)";
+        let lexer = Lexer::new(input);
+        let actual: Vec<Result<Token, LexError>> = lexer.collect();
+
+        let expected = vec![
+            Ok(Token::Create),
+            Ok(Token::Table),
+            Ok(Token::identifier("table1")),
+            Ok(Token::OpenParen),
+            Ok(Token::identifier("column1")),
+            Ok(Token::Int),
+            Ok(Token::Comma),
+            Ok(Token::identifier("column2")),
+            Ok(Token::Int),
+            Ok(Token::CloseParen),
+        ];
+
         assert_eq!(actual, expected);
     }
 }

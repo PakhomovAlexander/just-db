@@ -4,7 +4,7 @@ use crate::{
     analyzer::Analyzer,
     catalog::{Catalog, DataType, TableSchemaBuilder},
     optimizer::{Optimizer, StorageEngine, Tuple, Val},
-    parser::{lexer::Lexer, Parser},
+    parser::{Lexer, Parser},
 };
 
 pub struct Db {

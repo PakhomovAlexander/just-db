@@ -1,12 +1,3 @@
-
-
-
-
-
-
-
-
-
 # High Level Design
 This is a high level design of a simple database system. WIP.
 
