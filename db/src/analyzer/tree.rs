@@ -6,7 +6,7 @@ use crate::types::ColType;
 #[allow(dead_code)]
 #[derive(Debug, PartialEq, Clone)]
 pub enum Operator {
-    Projec {
+    Project {
         columns: Vec<Column>,
     },
     Filter {

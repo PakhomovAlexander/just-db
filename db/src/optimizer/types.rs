@@ -85,13 +85,19 @@ impl Column {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct FilterInfo {}
-
-#[derive(Debug, PartialEq, Clone)]
 pub enum Op {
-    Project(ProjectInfo, Vec<Op>),
-    Filter(FilterInfo, Vec<Op>),
-    FullScan(FullScanInfo, Vec<Op>),
+    Project {
+        cols: Vec<Column>,
+        children: Vec<Op>,
+    },
+    Filter {
+        children: Vec<Op>,
+    },
+    FullScan {
+        name: String,
+        state: FullScanState,
+        children: Vec<Op>,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -103,43 +109,41 @@ pub struct FullScanIterator {
 /// Vulcano pipiline model
 impl Op {
     pub fn full_scan(table_name: &str) -> Op {
-        Op::FullScan(
-            FullScanInfo {
-                name: table_name.to_string(),
-                state: FullScanState {
-                    curr_pos: 0,
-                    iterator: None,
-                },
+        Op::FullScan {
+            name: table_name.to_string(),
+            state: FullScanState {
+                curr_pos: 0,
+                iterator: None,
             },
-            vec![],
-        )
+            children: vec![],
+        }
     }
 
     pub fn project(cols: Vec<Column>, children: Vec<Op>) -> Op {
-        Op::Project(ProjectInfo { cols }, children)
+        Op::Project { cols, children }
     }
 
-    pub fn filter(_info: FilterInfo, children: Vec<Op>) -> Op {
-        Op::Filter(FilterInfo {}, children)
+    pub fn filter(children: Vec<Op>) -> Op {
+        Op::Filter { children }
     }
 
     pub fn open(&mut self, engine: Rc<StorageEngine>) {
         match self {
-            Op::FullScan(info, _) => {
-                let tuples = engine.scan(&info.name);
+            Op::FullScan { name, state, .. } => {
+                let tuples = engine.scan(&name);
                 let iter = FullScanIterator {
                     curr_pos: 0,
                     tuples,
                 };
 
-                info.state.iterator = Some(iter);
+                state.iterator = Some(iter);
             }
-            Op::Project(_, children) => {
+            Op::Project { children, .. } => {
                 for c in children {
                     c.open(Rc::clone(&engine));
                 }
             }
-            Op::Filter(_, children) => {
+            Op::Filter { children } => {
                 for c in children {
                     c.open(Rc::clone(&engine));
                 }
@@ -149,8 +153,12 @@ impl Op {
 
     fn next(&mut self) -> Option<Tuple> {
         match self {
-            Op::FullScan(info, _) => {
-                let iter = info.state.iterator.as_mut().unwrap();
+            Op::FullScan {
+                name,
+                state,
+                children,
+            } => {
+                let iter = state.iterator.as_mut().unwrap();
                 if iter.curr_pos < iter.tuples.len() {
                     let t = iter.tuples[iter.curr_pos].clone();
                     iter.curr_pos += 1;
@@ -159,12 +167,12 @@ impl Op {
                     None
                 }
             }
-            Op::Project(_, children_ops) => {
+            Op::Project { children, .. } => {
                 // TODO: Implement projection
-                children_ops[0].next()
+                children[0].next()
             }
-            Op::Filter(_, children_ops) => {
-                let t = children_ops[0].next().unwrap();
+            Op::Filter { children } => {
+                let t = children[0].next().unwrap();
                 Some(t)
             }
         }
@@ -172,15 +180,15 @@ impl Op {
 
     fn close(&mut self) {
         match self {
-            Op::FullScan(info, _) => {
-                info.state.iterator = None;
+            Op::FullScan { state, .. } => {
+                state.iterator = None;
             }
-            Op::Project(_, children) => {
+            Op::Project { children, .. } => {
                 for c in children {
                     c.close();
                 }
             }
-            Op::Filter(_, children) => {
+            Op::Filter { children } => {
                 for c in children {
                     c.close();
                 }

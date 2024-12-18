@@ -29,7 +29,7 @@ impl Analyzer {
                 let columns = walker.walk(&columns_node);
 
                 vec![LogicalNode {
-                    op: Operator::Projec { columns },
+                    op: Operator::Project { columns },
                     children: self.walk(&from_node),
                 }]
             }
@@ -302,7 +302,7 @@ mod tests {
     }
 
     fn project(columns: Vec<Column>) -> Operator {
-        Operator::Projec { columns }
+        Operator::Project { columns }
     }
 
     fn col_def(column_name: &str, column_type: ColType) -> ColumnDefinition {

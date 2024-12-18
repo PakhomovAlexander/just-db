@@ -6,13 +6,8 @@ use strum::Display;
 
 use crate::{
     analyzer::{LogicalNode, LogicalPlan, Operator},
-    catalog::{
-        types::{ColumnSchema, TableId},
-        Catalog,
-    },
-    optimizer::types::{
-        Column, FilterInfo, FullScanInfo, FullScanState, PhysicalPlan, ProjectInfo,
-    },
+    catalog::{types::TableId, Catalog},
+    optimizer::types::{Column, FullScanState, PhysicalPlan},
 };
 
 use super::types::{Op, StorageEngine};
@@ -49,7 +44,7 @@ struct PhysicalPlanBuilder {
 impl PhysicalPlanBuilder {
     fn walk(&mut self, node: &LogicalNode) -> Vec<Op> {
         match &node.op {
-            Operator::Projec { columns } => {
+            Operator::Project { columns } => {
                 let mut cols = Vec::new();
                 // FIXME: table is hardcoded!
                 let table_id = TableId::public("table1");
@@ -63,28 +58,28 @@ impl PhysicalPlanBuilder {
 
                 let c = &node.children;
 
-                let child_ops = if !c.is_empty() {
+                let children = if !c.is_empty() {
                     self.walk(&c[0])
                 } else {
                     Vec::new()
                 };
 
-                vec![Op::Project(ProjectInfo { cols }, child_ops)]
+                vec![Op::Project { cols, children }]
             }
             Operator::Read { table } => {
-                vec![Op::FullScan(
-                    FullScanInfo {
-                        name: table.table_name.clone(),
-                        state: FullScanState {
-                            curr_pos: 0,
-                            iterator: None,
-                        },
+                vec![Op::FullScan {
+                    name: table.table_name.clone(),
+                    state: FullScanState {
+                        curr_pos: 0,
+                        iterator: None,
                     },
-                    Vec::new(),
-                )]
+                    children: Vec::new(),
+                }]
             }
             Operator::Filter { .. } => {
-                vec![Op::Filter(FilterInfo {}, self.walk(&node.children[0]))]
+                vec![Op::Filter {
+                    children: self.walk(&node.children[0]),
+                }]
             }
             _ => {
                 panic!("Unsopported node")
@@ -120,7 +115,6 @@ mod tests {
         let l_plan = analyze("SELECT col1 FROM table1");
 
         let mut catalog = Catalog::mem();
-        let storage = StorageEngine::mem();
 
         let ts = TableSchemaBuilder::public()
             .table("table1")
@@ -129,7 +123,6 @@ mod tests {
         let _ = catalog.register_table(&ts);
         let cs = ts.get_column("col1").unwrap();
 
-        let storage_rc = Rc::new(storage);
         let optimizer = Optimizer::new(Rc::new(catalog));
 
         let p_plan = optimizer.optimize(l_plan);
