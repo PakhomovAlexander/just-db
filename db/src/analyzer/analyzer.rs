@@ -17,6 +17,7 @@ impl Analyzer {
         }
     }
 
+    #[allow(clippy::only_used_in_recursion)]
     fn walk(&self, node: &Node) -> Vec<LogicalNode> {
         match node.op() {
             Some(Op::Select) => {
@@ -25,10 +26,10 @@ impl Analyzer {
                 let columns_node = children[0].clone();
 
                 let mut walker = ColumnWalker::new();
-                let columns = walker.walk(columns_node);
+                let columns = walker.walk(&columns_node);
 
                 vec![LogicalNode {
-                    op: Operator::Projec(ProjectInfo { columns }),
+                    op: Operator::Projec { columns },
                     children: self.walk(&from_node),
                 }]
             }
@@ -37,13 +38,13 @@ impl Analyzer {
 
                 let tables_node = children[0].clone();
                 let mut walker = TableWalker::new();
-                let tables = walker.walk(tables_node);
+                let tables = walker.walk(&tables_node);
 
                 let mut nodes = vec![];
 
                 for table in tables {
                     let node = LogicalNode {
-                        op: Operator::Read(ReadInfo { table }),
+                        op: Operator::Read { table },
                         children: vec![],
                     };
 
@@ -54,9 +55,9 @@ impl Analyzer {
                 if where_node.op() == Some(Op::Where) {
                     let where_l_node = self.walk(&where_node);
                     let n = LogicalNode {
-                        op: Operator::Filter(FilterInfo {
+                        op: Operator::Filter {
                             node: Box::new(where_l_node[0].clone()),
-                        }),
+                        },
                         children: nodes,
                     };
                     vec![n]
@@ -70,7 +71,7 @@ impl Analyzer {
                 let node = children[0].clone();
                 let mut walker = WhereWalker::new();
 
-                vec![walker.walk(node)]
+                vec![walker.walk(&node)]
             }
             Some(Op::CreateTable) => {
                 let children = node.children();
@@ -97,13 +98,13 @@ impl ColumnWalker {
         ColumnWalker { columns: vec![] }
     }
 
-    fn walk(&mut self, node: Node) -> Vec<Column> {
+    fn walk(&mut self, node: &Node) -> Vec<Column> {
         match node.op() {
             Some(Op::Comma) => {
                 let children = node.children();
-                // TODO: do not clone here
-                self.walk(children[0].clone());
-                self.walk(children[1].clone());
+                // TODO
+                self.walk(&children[0]);
+                self.walk(&children[1]);
                 self.columns.clone()
             }
             None => {
@@ -135,13 +136,12 @@ impl TableWalker {
         TableWalker { tables: vec![] }
     }
 
-    fn walk(&mut self, node: Node) -> Vec<Table> {
+    fn walk(&mut self, node: &Node) -> Vec<Table> {
         match node.op() {
             Some(Op::Comma) => {
                 let children = node.children();
-                // TODO: do not clone here
-                self.walk(children[0].clone());
-                self.walk(children[1].clone());
+                self.walk(&children[0]);
+                self.walk(&children[1]);
 
                 self.tables.clone()
             }
@@ -172,23 +172,23 @@ impl WhereWalker {
         WhereWalker {}
     }
 
-    fn walk(&mut self, node: Node) -> LogicalNode {
+    fn walk(&mut self, node: &Node) -> LogicalNode {
         match node.op() {
             Some(Op::Equals) => {
                 let children = node.children();
-                // TODO: do not clone here
-                let left = self.walk(children[0].clone());
-                let right = self.walk(children[1].clone());
+                let left = self.walk(&children[0]);
+                let right = self.walk(&children[1]);
 
                 LogicalNode {
-                    op: Operator::Eq(InfixOpInfo {
+                    op: Operator::Eq {
                         left: Box::new(left),
                         right: Box::new(right),
-                    }),
+                    },
                     children: vec![],
                 }
             }
             None => match node.literal().unwrap() {
+                // TODO: toooo verbosse
                 Literal::Identifier {
                     first_name,
                     second_name: _,
@@ -234,10 +234,10 @@ impl CreateTableWalker {
         let columns = &children[1];
 
         return LogicalNode {
-            op: Operator::CreateTable(CreateTableInfo {
+            op: Operator::CreateTable {
                 table_name: table_name.to_string(),
                 columns: self.walk_column_definition(columns),
-            }),
+            },
             children: vec![],
         };
     }
@@ -287,6 +287,7 @@ mod tests {
         parser::{Lexer, Parser},
         types::ColType,
     };
+    use pretty_assertions::assert_eq;
 
     fn column(column_name: &str) -> Column {
         Column {
@@ -301,7 +302,7 @@ mod tests {
     }
 
     fn project(columns: Vec<Column>) -> Operator {
-        Operator::Projec(ProjectInfo { columns })
+        Operator::Projec { columns }
     }
 
     fn col_def(column_name: &str, column_type: ColType) -> ColumnDefinition {
@@ -312,27 +313,27 @@ mod tests {
     }
 
     fn create_table(table_name: &str, columns: Vec<ColumnDefinition>) -> Operator {
-        Operator::CreateTable(CreateTableInfo {
+        Operator::CreateTable {
             table_name: table_name.to_string(),
             columns,
-        })
+        }
     }
 
     fn read(table: Table) -> Operator {
-        Operator::Read(ReadInfo { table })
+        Operator::Read { table }
     }
 
     fn filter(node: LogicalNode) -> Operator {
-        Operator::Filter(FilterInfo {
+        Operator::Filter {
             node: Box::new(node),
-        })
+        }
     }
 
     fn eq(left: LogicalNode, right: LogicalNode) -> Operator {
-        Operator::Eq(InfixOpInfo {
+        Operator::Eq {
             left: Box::new(left),
             right: Box::new(right),
-        })
+        }
     }
 
     fn col(column_name: &str) -> Operator {

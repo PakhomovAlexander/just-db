@@ -6,27 +6,70 @@ use crate::types::ColType;
 #[allow(dead_code)]
 #[derive(Debug, PartialEq, Clone)]
 pub enum Operator {
-    Projec(ProjectInfo),
-    Filter(FilterInfo),
-    Read(ReadInfo),
-    Join(JoinInfo),
-    Group(GroupInfo),
-    Sort(SortInfo),
-    Limit(LimitInfo),
-    Distinct(DistinctInfo),
+    Projec {
+        columns: Vec<Column>,
+    },
+    Filter {
+        node: Box<LogicalNode>,
+    },
+    Read {
+        table: Table,
+    },
+    Join(),
+    Group(),
+    Sort(),
+    Limit(),
+    Distinct(),
 
-    Add(InfixOpInfo),
-    Sub(InfixOpInfo),
-    Mul(InfixOpInfo),
-    Div(InfixOpInfo),
-    Eq(InfixOpInfo),
-    Neq(InfixOpInfo),
-    Lt(InfixOpInfo),
-    Lte(InfixOpInfo),
-    Gt(InfixOpInfo),
-    Gte(InfixOpInfo),
-    And(InfixOpInfo),
-    Or(InfixOpInfo),
+    Add {
+        left: Box<LogicalNode>,
+        right: Box<LogicalNode>,
+    },
+    Sub {
+        left: Box<LogicalNode>,
+        right: Box<LogicalNode>,
+    },
+    Mul {
+        left: Box<LogicalNode>,
+        right: Box<LogicalNode>,
+    },
+    Div {
+        left: Box<LogicalNode>,
+        right: Box<LogicalNode>,
+    },
+    Eq {
+        left: Box<LogicalNode>,
+        right: Box<LogicalNode>,
+    },
+    Neq {
+        left: Box<LogicalNode>,
+        right: Box<LogicalNode>,
+    },
+    Lt {
+        left: Box<LogicalNode>,
+        right: Box<LogicalNode>,
+    },
+    Lte {
+        left: Box<LogicalNode>,
+        right: Box<LogicalNode>,
+    },
+    Gt {
+        left: Box<LogicalNode>,
+        right: Box<LogicalNode>,
+    },
+
+    Gte {
+        left: Box<LogicalNode>,
+        right: Box<LogicalNode>,
+    },
+    And {
+        left: Box<LogicalNode>,
+        right: Box<LogicalNode>,
+    },
+    Or {
+        left: Box<LogicalNode>,
+        right: Box<LogicalNode>,
+    },
     Not,
     In,
     Like,
@@ -41,12 +84,10 @@ pub enum Operator {
     Const(Constant),
     Col(Column),
 
-    CreateTable(CreateTableInfo),
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct ProjectInfo {
-    pub columns: Vec<Column>,
+    CreateTable {
+        table_name: String,
+        columns: Vec<ColumnDefinition>,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -69,43 +110,6 @@ pub enum Constant {
 #[derive(Debug, PartialEq, Clone)]
 pub struct Table {
     pub table_name: String,
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct FilterInfo {
-    pub node: Box<LogicalNode>,
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct InfixOpInfo {
-    pub left: Box<LogicalNode>,
-    pub right: Box<LogicalNode>,
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct ReadInfo {
-    pub table: Table,
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct JoinInfo {}
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct GroupInfo {}
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct SortInfo {}
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct LimitInfo {}
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct DistinctInfo {}
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct CreateTableInfo {
-    pub table_name: String,
-    pub columns: Vec<ColumnDefinition>,
 }
 
 #[derive(Debug, PartialEq, Clone)]

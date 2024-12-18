@@ -8,6 +8,28 @@ Today we are going to:
 
 - [ ] refactor code
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 - [ ] support CREATE TABLE statement 
 
 

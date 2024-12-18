@@ -52,12 +52,13 @@ struct PhysicalPlanBuilder {
 impl PhysicalPlanBuilder {
     fn walk(&mut self, node: &LogicalNode) -> Vec<Op> {
         match &node.op {
-            Operator::Projec(info) => {
+            Operator::Projec { columns } => {
                 let mut cols = Vec::new();
+                // FIXME: table is hardcoded!
                 let table_id = TableId::public("table1");
                 let table_schema = self.catalog.get_table(&table_id).unwrap();
 
-                for c in &info.columns {
+                for c in columns {
                     cols.push(Column::new(
                         &table_schema.get_column(&c.column_name).unwrap(),
                     ));
@@ -73,10 +74,10 @@ impl PhysicalPlanBuilder {
 
                 vec![Op::Project(ProjectInfo { cols }, child_ops)]
             }
-            Operator::Read(info) => {
+            Operator::Read { table } => {
                 vec![Op::FullScan(
                     FullScanInfo {
-                        name: info.table.table_name.clone(),
+                        name: table.table_name.clone(),
                         engine: Rc::clone(&self.storage),
                         state: FullScanState {
                             curr_pos: 0,
@@ -86,7 +87,7 @@ impl PhysicalPlanBuilder {
                     Vec::new(),
                 )]
             }
-            Operator::Filter(_info) => {
+            Operator::Filter { .. } => {
                 vec![Op::Filter(FilterInfo {}, self.walk(&node.children[0]))]
             }
             _ => {
