@@ -2,9 +2,7 @@
 
 mod lexer;
 
-pub use lexer::LexError;
 pub use lexer::Lexer;
-pub use lexer::Token;
 
 mod parser;
 

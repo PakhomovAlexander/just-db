@@ -77,7 +77,7 @@ impl Analyzer {
                 let children = node.children();
                 let mut walker = CreateTableWalker::new();
 
-                vec![walker.walk(&node)]
+                vec![walker.walk(node)]
             }
             None => {
                 panic!("unexpected node: {:?}", node);
@@ -233,13 +233,13 @@ impl CreateTableWalker {
         };
         let columns = &children[1];
 
-        return LogicalNode {
+        LogicalNode {
             op: Operator::CreateTable {
                 table_name: table_name.to_string(),
                 columns: self.walk_column_definition(columns),
             },
             children: vec![],
-        };
+        }
     }
 
     fn walk_column_definition(&mut self, node: &Node) -> Vec<ColumnDefinition> {

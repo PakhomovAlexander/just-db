@@ -130,7 +130,7 @@ impl Op {
     pub fn open(&mut self, engine: Rc<StorageEngine>) {
         match self {
             Op::FullScan { name, state, .. } => {
-                let tuples = engine.scan(&name);
+                let tuples = engine.scan(name);
                 let iter = FullScanIterator {
                     curr_pos: 0,
                     tuples,

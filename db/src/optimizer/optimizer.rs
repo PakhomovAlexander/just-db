@@ -1,8 +1,6 @@
 use core::panic;
-use std::{collections::HashMap, rc::Rc};
+use std::rc::Rc;
 
-use serde::{Deserialize, Serialize};
-use strum::Display;
 
 use crate::{
     analyzer::{LogicalNode, LogicalPlan, Operator},
@@ -10,7 +8,7 @@ use crate::{
     optimizer::types::{Column, FullScanState, PhysicalPlan},
 };
 
-use super::types::{Op, StorageEngine};
+use super::types::Op;
 
 pub struct Optimizer {
     catalog: Rc<Catalog>,
