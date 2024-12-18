@@ -19,7 +19,6 @@ use super::types::{Op, StorageEngine};
 
 pub struct Optimizer {
     catalog: Rc<Catalog>,
-    storage: Rc<StorageEngine>,
 }
 
 impl Optimizer {
@@ -28,7 +27,6 @@ impl Optimizer {
 
         let mut builder = PhysicalPlanBuilder {
             catalog: Rc::clone(&self.catalog),
-            storage: Rc::clone(&self.storage),
         };
 
         let root_op = builder.walk(&root_node);
@@ -39,14 +37,13 @@ impl Optimizer {
         }
     }
 
-    pub fn new(catalog: Rc<Catalog>, storage: Rc<StorageEngine>) -> Self {
-        Optimizer { catalog, storage }
+    pub fn new(catalog: Rc<Catalog>) -> Self {
+        Optimizer { catalog }
     }
 }
 
 struct PhysicalPlanBuilder {
     catalog: Rc<Catalog>,
-    storage: Rc<StorageEngine>,
 }
 
 impl PhysicalPlanBuilder {
@@ -78,7 +75,6 @@ impl PhysicalPlanBuilder {
                 vec![Op::FullScan(
                     FullScanInfo {
                         name: table.table_name.clone(),
-                        engine: Rc::clone(&self.storage),
                         state: FullScanState {
                             curr_pos: 0,
                             iterator: None,
@@ -134,17 +130,14 @@ mod tests {
         let cs = ts.get_column("col1").unwrap();
 
         let storage_rc = Rc::new(storage);
-        let optimizer = Optimizer::new(Rc::new(catalog), Rc::clone(&storage_rc));
+        let optimizer = Optimizer::new(Rc::new(catalog));
 
         let p_plan = optimizer.optimize(l_plan);
 
         assert_eq!(
             p_plan,
             PhysicalPlan {
-                root: Op::project(
-                    vec![Column::new(&cs)],
-                    vec![Op::full_scan("table1", Rc::clone(&storage_rc))]
-                )
+                root: Op::project(vec![Column::new(&cs)], vec![Op::full_scan("table1")])
             }
         );
     }
@@ -175,11 +168,11 @@ mod tests {
         let catalog_rc = Rc::new(catalog);
         let storage_rc = Rc::new(storage);
 
-        let optimizer = Optimizer::new(Rc::clone(&catalog_rc), Rc::clone(&storage_rc));
+        let optimizer = Optimizer::new(Rc::clone(&catalog_rc));
 
         let mut p_plan = optimizer.optimize(l_plan);
 
-        let tuples = p_plan.execute_all();
+        let tuples = p_plan.execute_all(Rc::clone(&storage_rc));
 
         assert_eq!(tuples.len(), 4);
     }

@@ -11,9 +11,9 @@ pub struct PhysicalPlan {
 }
 
 impl PhysicalPlan {
-    pub fn execute_all(&mut self) -> Vec<Tuple> {
+    pub fn execute_all(&mut self, engine: Rc<StorageEngine>) -> Vec<Tuple> {
         let mut tuples = Vec::new();
-        self.root.open();
+        self.root.open(Rc::clone(&engine));
         while let Some(t) = self.root.next() {
             tuples.push(t);
         }
@@ -58,7 +58,6 @@ struct MemoryStorageEngine {
 pub struct FullScanInfo {
     pub name: String,
     pub state: FullScanState,
-    pub engine: Rc<StorageEngine>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -103,11 +102,10 @@ pub struct FullScanIterator {
 
 /// Vulcano pipiline model
 impl Op {
-    pub fn full_scan(table_name: &str, engine: Rc<StorageEngine>) -> Op {
+    pub fn full_scan(table_name: &str) -> Op {
         Op::FullScan(
             FullScanInfo {
                 name: table_name.to_string(),
-                engine,
                 state: FullScanState {
                     curr_pos: 0,
                     iterator: None,
@@ -125,10 +123,10 @@ impl Op {
         Op::Filter(FilterInfo {}, children)
     }
 
-    pub fn open(&mut self) {
+    pub fn open(&mut self, engine: Rc<StorageEngine>) {
         match self {
             Op::FullScan(info, _) => {
-                let tuples = info.engine.scan(&info.name);
+                let tuples = engine.scan(&info.name);
                 let iter = FullScanIterator {
                     curr_pos: 0,
                     tuples,
@@ -138,12 +136,12 @@ impl Op {
             }
             Op::Project(_, children) => {
                 for c in children {
-                    c.open();
+                    c.open(Rc::clone(&engine));
                 }
             }
             Op::Filter(_, children) => {
                 for c in children {
-                    c.open();
+                    c.open(Rc::clone(&engine));
                 }
             }
         }

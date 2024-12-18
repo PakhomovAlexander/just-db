@@ -62,7 +62,7 @@ impl Db {
         let catalog_rc = Rc::new(catalog);
         let storage_rc = Rc::new(storage);
 
-        let optimizer = Optimizer::new(Rc::clone(&catalog_rc), Rc::clone(&storage_rc));
+        let optimizer = Optimizer::new(Rc::clone(&catalog_rc));
 
         Self {
             catalog_rc,
@@ -81,6 +81,6 @@ impl Db {
 
         let mut p_plan = self.optimizer.optimize(l_plan);
 
-        p_plan.execute_all()
+        p_plan.execute_all(Rc::clone(&self.storage_rc))
     }
 }
