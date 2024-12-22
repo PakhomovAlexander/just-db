@@ -44,7 +44,7 @@ impl<'a> Iterator for Lexer<'a> {
             c if c.is_alphabetic() => self.word_started(),
             c if c.is_numeric() => self.numeric_started(false),
 
-            _ => Some(Err(LexError::InvalidCharacter(c))),
+            _ => self.lex_err(c),
         }
     }
 }
@@ -90,10 +90,17 @@ impl<'a> Lexer<'a> {
         self.current_position - 1
     }
 
+    fn lex_err(&self, c: char) -> Option<Result<Token<'a>, LexError>> {
+        Some(Err(LexError::InvalidCharacter(
+            c,
+            self.current_position - 1,
+        )))
+    }
+
     fn single(&mut self, token: Token<'a>) -> Option<Result<Token<'a>, LexError>> {
         match self.get_next_and_increment() {
             Some(c) if c.is_whitespace() => Some(Ok(token)),
-            Some(c) => Some(Err(LexError::InvalidCharacter(c))),
+            Some(c) => self.lex_err(c),
             None => Some(Ok(token)),
         }
     }
@@ -127,7 +134,7 @@ impl<'a> Lexer<'a> {
                 Some('>') => Some(Ok(Token::NotEquals)),
                 Some(' ') => Some(Ok(Token::LessThan)),
 
-                Some(c) => Some(Err(LexError::InvalidCharacter(c))),
+                Some(c) => self.lex_err(c),
 
                 None => Some(Ok(Token::LessThan)),
             },
@@ -135,7 +142,7 @@ impl<'a> Lexer<'a> {
                 Some('=') => Some(Ok(Token::GreaterThanOrEquals)),
                 Some(' ') => Some(Ok(Token::GreaterThan)),
 
-                Some(c) => Some(Err(LexError::InvalidCharacter(c))),
+                Some(c) => self.lex_err(c),
 
                 None => Some(Ok(Token::GreaterThan)),
             },
@@ -143,7 +150,7 @@ impl<'a> Lexer<'a> {
                 Some(' ') => Some(Ok(Token::Slash)),
                 Some('*') => self.multi_line_comment_started(),
 
-                Some(c) => Some(Err(LexError::InvalidCharacter(c))),
+                Some(c) => self.lex_err(c),
 
                 None => Some(Ok(Token::Slash)),
             },
@@ -152,11 +159,11 @@ impl<'a> Lexer<'a> {
                 Some('-') => self.single_line_comment_started(),
 
                 Some(c) if c.is_numeric() => self.numeric_started(true),
-                Some(c) => Some(Err(LexError::InvalidCharacter(c))),
+                Some(c) => self.lex_err(c),
 
                 None => Some(Ok(Token::Minus)),
             },
-            _ => Some(Err(LexError::InvalidCharacter(second.unwrap()))),
+            _ => self.lex_err(second.unwrap()),
         }
     }
 
@@ -197,93 +204,12 @@ impl<'a> Lexer<'a> {
 
         let word = &self.input[started_position..self.get_last_token_end()];
 
-        let binding = word.to_lowercase();
-        let lower_case_word = binding.as_str();
-
-        match lower_case_word {
-            "select" => Some(Ok(Token::Select)),
-            "from" => Some(Ok(Token::From)),
-            "where" => Some(Ok(Token::Where)),
-            "insert" => Some(Ok(Token::Insert)),
-            "into" => Some(Ok(Token::Into)),
-            "values" => Some(Ok(Token::Values)),
-            "update" => Some(Ok(Token::Update)),
-            "set" => Some(Ok(Token::Set)),
-            "delete" => Some(Ok(Token::Delete)),
-            "create" => Some(Ok(Token::Create)),
-            "table" => Some(Ok(Token::Table)),
-            "primary" => Some(Ok(Token::Primary)),
-            "key" => Some(Ok(Token::Key)),
-            "foreign" => Some(Ok(Token::Foreign)),
-            "references" => Some(Ok(Token::References)),
-            "drop" => Some(Ok(Token::Drop)),
-            "alter" => Some(Ok(Token::Alter)),
-            "add" => Some(Ok(Token::Add)),
-            "column" => Some(Ok(Token::Column)),
-            "constraint" => Some(Ok(Token::Constraint)),
-            "index" => Some(Ok(Token::Index)),
-            "join" => Some(Ok(Token::Join)),
-            "inner" => Some(Ok(Token::Inner)),
-            "left" => Some(Ok(Token::Left)),
-            "right" => Some(Ok(Token::Right)),
-            "full" => Some(Ok(Token::Full)),
-            "outer" => Some(Ok(Token::Outer)),
-            "on" => Some(Ok(Token::On)),
-            "group" => Some(Ok(Token::Group)),
-            "by" => Some(Ok(Token::By)),
-            "order" => Some(Ok(Token::Order)),
-            "asc" => Some(Ok(Token::Asc)),
-            "desc" => Some(Ok(Token::Desc)),
-            "union" => Some(Ok(Token::Union)),
-            "all" => Some(Ok(Token::All)),
-            "distinct" => Some(Ok(Token::Distinct)),
-            "limit" => Some(Ok(Token::Limit)),
-            "offset" => Some(Ok(Token::Offset)),
-            "having" => Some(Ok(Token::Having)),
-            "as" => Some(Ok(Token::As)),
-            "and" => Some(Ok(Token::And)),
-            "or" => Some(Ok(Token::Or)),
-            "not" => Some(Ok(Token::Not)),
-            "null" => Some(Ok(Token::Null)),
-            "is" => Some(Ok(Token::Is)),
-            "in" => Some(Ok(Token::In)),
-            "between" => Some(Ok(Token::Between)),
-            "like" => Some(Ok(Token::Like)),
-            "exists" => Some(Ok(Token::Exists)),
-            "any" => Some(Ok(Token::Any)),
-            "case" => Some(Ok(Token::Case)),
-            "when" => Some(Ok(Token::When)),
-            "then" => Some(Ok(Token::Then)),
-            "else" => Some(Ok(Token::Else)),
-            "end" => Some(Ok(Token::End)),
-            "default" => Some(Ok(Token::Default)),
-            "true" => Some(Ok(Token::BooleanLiteral(true))),
-            "false" => Some(Ok(Token::BooleanLiteral(false))),
-            "int" => Some(Ok(Token::Int)),
-            "integer" => Some(Ok(Token::Integer)),
-            "smallint" => Some(Ok(Token::SmallInt)),
-            "tinyint" => Some(Ok(Token::TinyInt)),
-            "bigint" => Some(Ok(Token::BigInt)),
-            "float" => Some(Ok(Token::Float)),
-            "real" => Some(Ok(Token::Real)),
-            "double" => Some(Ok(Token::Double)),
-            "decimal" => Some(Ok(Token::Decimal)),
-            "numeric" => Some(Ok(Token::Numeric)),
-            "varchar" => Some(Ok(Token::VarChar)),
-            "char" => Some(Ok(Token::Char)),
-            "text" => Some(Ok(Token::Text)),
-            "date" => Some(Ok(Token::Date)),
-            "time" => Some(Ok(Token::Time)),
-            "timestamp" => Some(Ok(Token::Timestamp)),
-            "datetime" => Some(Ok(Token::DateTime)),
-            "boolean" => Some(Ok(Token::Boolean)),
-            _ => Some(Ok(Token::identifier(word))),
-        }
+        Token::from_str(word)
     }
 
     fn quote_started(&mut self, quote: Token<'a>) -> Option<Result<Token<'a>, LexError>> {
-        let same_quote = |c: Option<char>| -> bool {
-            match c {
+        let same_quote = |q: Option<char>| -> bool {
+            match q {
                 Some('\'') => quote == Token::SingleQuote,
                 Some('"') => quote == Token::DoubleQuote,
                 _ => false,
@@ -302,7 +228,7 @@ impl<'a> Lexer<'a> {
 
         let literal = &self.input[started_position..self.get_last_token_end()];
 
-        return Some(Ok(Token::StringLiteral(literal.to_string())));
+        Some(Ok(Token::StringLiteral(literal.to_string())))
     }
 
     fn numeric_started(&mut self, has_sign: bool) -> Option<Result<Token<'a>, LexError>> {
@@ -321,7 +247,7 @@ impl<'a> Lexer<'a> {
                 continue;
             } else if c == Some('.') {
                 if seen_dot {
-                    return Some(Err(LexError::InvalidCharacter('.')));
+                    return self.lex_err('.');
                 }
                 seen_dot = true;
                 continue;
@@ -343,7 +269,7 @@ impl<'a> Lexer<'a> {
             literal.to_string()
         };
 
-        return Some(Ok(Token::NumericLiteral(string_representation)));
+        Some(Ok(Token::NumericLiteral(string_representation)))
     }
 
     fn single_line_comment_started(&mut self) -> Option<Result<Token<'a>, LexError>> {
@@ -357,7 +283,7 @@ impl<'a> Lexer<'a> {
 
         let comment = &self.input[started_position..self.get_last_token_end()];
 
-        return Some(Ok(Token::SingleLineComment(comment.to_string())));
+        Some(Ok(Token::SingleLineComment(comment.to_string())))
     }
 
     fn multi_line_comment_started(&mut self) -> Option<Result<Token<'a>, LexError>> {
@@ -374,7 +300,7 @@ impl<'a> Lexer<'a> {
 
         let comment = &self.input[started_position..self.current_position - 2];
 
-        return Some(Ok(Token::MultiLineComment(comment.to_string())));
+        Some(Ok(Token::MultiLineComment(comment.to_string())))
     }
 
     fn identifier_dot_started(
@@ -412,7 +338,7 @@ impl<'a> Lexer<'a> {
         }
 
         if third_dot_position > 0 {
-            return Some(Err(LexError::InvalidCharacter('.')));
+            return self.lex_err('.');
         }
 
         let first_name = &self.input[started_position..first_dot_position - 1];
@@ -478,7 +404,7 @@ mod tests {
         let lexer = Lexer::new(input);
         let actual: Vec<Result<Token, LexError>> = lexer.collect();
 
-        let expected = vec![Err(LexError::InvalidCharacter('*'))];
+        let expected = vec![Err(LexError::InvalidCharacter('*', 1))];
 
         assert_eq!(actual, expected);
     }

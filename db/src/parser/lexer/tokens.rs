@@ -1,3 +1,5 @@
+use super::LexError;
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum Token<'a> {
     Select,
@@ -116,5 +118,92 @@ impl<'a> Token<'a> {
             second_name: None,
             third_name: None,
         }
+    }
+
+    pub fn from_str(word: &'a str) -> Option<Result<Token<'a>, LexError>> {
+        let binding = word.to_lowercase();
+        let lower_case_word = binding.as_str();
+
+        let t = match lower_case_word {
+            "select" => Token::Select,
+            "from" => Token::From,
+            "where" => Token::Where,
+            "insert" => Token::Insert,
+            "into" => Token::Into,
+            "values" => Token::Values,
+            "update" => Token::Update,
+            "set" => Token::Set,
+            "delete" => Token::Delete,
+            "create" => Token::Create,
+            "table" => Token::Table,
+            "primary" => Token::Primary,
+            "key" => Token::Key,
+            "foreign" => Token::Foreign,
+            "references" => Token::References,
+            "drop" => Token::Drop,
+            "alter" => Token::Alter,
+            "add" => Token::Add,
+            "column" => Token::Column,
+            "constraint" => Token::Constraint,
+            "index" => Token::Index,
+            "join" => Token::Join,
+            "inner" => Token::Inner,
+            "left" => Token::Left,
+            "right" => Token::Right,
+            "full" => Token::Full,
+            "outer" => Token::Outer,
+            "on" => Token::On,
+            "group" => Token::Group,
+            "by" => Token::By,
+            "order" => Token::Order,
+            "asc" => Token::Asc,
+            "desc" => Token::Desc,
+            "union" => Token::Union,
+            "all" => Token::All,
+            "distinct" => Token::Distinct,
+            "limit" => Token::Limit,
+            "offset" => Token::Offset,
+            "having" => Token::Having,
+            "as" => Token::As,
+            "and" => Token::And,
+            "or" => Token::Or,
+            "not" => Token::Not,
+            "null" => Token::Null,
+            "is" => Token::Is,
+            "in" => Token::In,
+            "between" => Token::Between,
+            "like" => Token::Like,
+            "exists" => Token::Exists,
+            "any" => Token::Any,
+            "case" => Token::Case,
+            "when" => Token::When,
+            "then" => Token::Then,
+            "else" => Token::Else,
+            "end" => Token::End,
+            "default" => Token::Default,
+            "true" => Token::BooleanLiteral(true),
+            "false" => Token::BooleanLiteral(false),
+            "int" => Token::Int,
+            "integer" => Token::Integer,
+            "smallint" => Token::SmallInt,
+            "tinyint" => Token::TinyInt,
+            "bigint" => Token::BigInt,
+            "float" => Token::Float,
+            "real" => Token::Real,
+            "double" => Token::Double,
+            "decimal" => Token::Decimal,
+            "numeric" => Token::Numeric,
+            "varchar" => Token::VarChar,
+            "char" => Token::Char,
+            "text" => Token::Text,
+            "date" => Token::Date,
+            "time" => Token::Time,
+            "timestamp" => Token::Timestamp,
+            "datetime" => Token::DateTime,
+            "boolean" => Token::Boolean,
+            _ => Token::identifier(word),
+        };
+
+        Some(Ok(t))
     }
 }

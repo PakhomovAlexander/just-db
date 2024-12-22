@@ -6,7 +6,13 @@
 
 Today we are going to:
 
-- [ ] refactor code
+
+- [ ] improve Lexer and Parser
+  - [ ] Use mathces! in Lexer
+  - [ ] get rid of panic!
+
+
+
 
 
 
