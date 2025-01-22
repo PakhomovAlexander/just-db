@@ -46,7 +46,7 @@ impl Component for Editor {
 
                 let mut text = String::new();
                 for line in &self.editor_state.lines.flatten(&Some('\n')) {
-                    text.push_str(&line.to_string());
+                    text.push(*line);
                 }
                 // maybe flatten?
 
