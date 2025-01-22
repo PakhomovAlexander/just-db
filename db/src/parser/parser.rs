@@ -644,7 +644,7 @@ mod tests {
         )";
 
         assert_eq!(
-            dbg!(parse(input)),
+            parse(input),
             prefix_chain(
                 Op::CreateTable,
                 leaf(id("table1")),

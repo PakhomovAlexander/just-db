@@ -88,6 +88,12 @@ pub enum Operator {
         table_name: String,
         columns: Vec<ColumnDefinition>,
     },
+
+    InsertInto {
+        table_name: String,
+        columns: Vec<Column>,
+        values: Vec<Constant>,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone)]

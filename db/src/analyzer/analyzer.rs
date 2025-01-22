@@ -1,4 +1,5 @@
 use core::panic;
+use std::vec;
 
 use crate::parser::tree::{Literal, Node, Op};
 
@@ -74,8 +75,12 @@ impl Analyzer {
                 vec![walker.walk(&node)]
             }
             Some(Op::CreateTable) => {
-                let children = node.children();
                 let mut walker = CreateTableWalker::new();
+
+                vec![walker.walk(node)]
+            }
+            Some(Op::InsertInto) => {
+                let mut walker = InsertIntoWalker::new();
 
                 vec![walker.walk(node)]
             }
@@ -280,6 +285,111 @@ impl CreateTableWalker {
         }
     }
 }
+
+struct InsertIntoWalker {}
+
+impl InsertIntoWalker {
+    fn new() -> Self {
+        InsertIntoWalker {}
+    }
+
+    fn walk(&mut self, node: &Node) -> LogicalNode {
+        let children = node.children();
+        let table_name = match children[0].literal().unwrap() {
+            Literal::Identifier {
+                first_name,
+                second_name: _,
+                third_name: _,
+            } => first_name,
+            _ => panic!("unexpected node: {:?}", node),
+        };
+        let columns = &children[1];
+        let values = &children[2];
+
+        LogicalNode {
+            op: Operator::InsertInto {
+                table_name: table_name.to_string(),
+                columns: self.walk_columns(columns),
+                values: self.walk_values(values),
+            },
+            children: vec![],
+        }
+    }
+
+    fn walk_columns(&mut self, node: &Node) -> Vec<Column> {
+        match node.op() {
+            Some(Op::ColumnList) => {
+                let mut columns = vec![];
+                for c in node.children() {
+                    match c.op() {
+                        Some(Op::Comma) => {}
+                        None => {
+                            let column_name = Self::get_str_literal(&c);
+                            columns.push(Column { column_name });
+                        }
+                        n => {
+                            panic!("unexpected node: {:?}", n);
+                        }
+                    }
+                }
+
+                columns
+            }
+            None => {
+                panic!("unexpected node: {:?}", node);
+            }
+            n => {
+                panic!("unexpected node: {:?}", n);
+            }
+        }
+    }
+
+    fn walk_values(&mut self, node: &Node) -> Vec<Constant> {
+        match node.op() {
+            Some(Op::Values) => {
+                let mut values = vec![];
+                for c in node.children() {
+                    match c.op() {
+                        Some(Op::Comma) => {}
+                        None => {
+                            values.push(Self::get_constant(&c));
+                        }
+                        n => {
+                            panic!("unexpected node: {:?}", n);
+                        }
+                    }
+                }
+
+                values
+            }
+            None => {
+                panic!("unexpected node: {:?}", node);
+            }
+            n => {
+                panic!("unexpected node: {:?}", n);
+            }
+        }
+    }
+
+    fn get_str_literal(node: &Node) -> String {
+        match node.literal().unwrap() {
+            Literal::Identifier {
+                first_name,
+                second_name: _,
+                third_name: _,
+            } => first_name,
+            _ => panic!("unexpected node: {:?}", node),
+        }
+    }
+
+    fn get_constant(node: &Node) -> Constant {
+        match node.literal().unwrap() {
+            Literal::Numeric(n) => Constant::Num(n),
+            _ => panic!("unexpected node: {:?}", node),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{
@@ -293,6 +403,10 @@ mod tests {
         Column {
             column_name: column_name.to_string(),
         }
+    }
+
+    fn constant(n: i32) -> Constant {
+        Constant::Num(n)
     }
 
     fn table(table_name: &str) -> Table {
@@ -316,6 +430,14 @@ mod tests {
         Operator::CreateTable {
             table_name: table_name.to_string(),
             columns,
+        }
+    }
+
+    fn insert_into(table_name: &str, columns: Vec<Column>, values: Vec<Constant>) -> Operator {
+        Operator::InsertInto {
+            table_name: table_name.to_string(),
+            columns,
+            values,
         }
     }
 
@@ -447,6 +569,21 @@ mod tests {
                         col_def("col2", ColType::Int),
                         col_def("col3", ColType::Int)
                     ]
+                ),
+                vec![]
+            ))
+        );
+    }
+
+    #[test]
+    fn insert_into_table() {
+        assert_eq!(
+            analyze("INSERT INTO table1 (col1, col2, col3) values (1, 22, 333)"),
+            plan(node(
+                insert_into(
+                    "table1",
+                    vec![column("col1"), column("col2"), column("col3")],
+                    vec![constant(1), constant(22), constant(333)]
                 ),
                 vec![]
             ))
