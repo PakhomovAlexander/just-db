@@ -1,17 +1,16 @@
 use core::panic;
-use std::rc::Rc;
-
+use std::{cell::RefCell, rc::Rc};
 
 use crate::{
     analyzer::{LogicalNode, LogicalPlan, Operator},
-    catalog::{types::TableId, Catalog},
+    catalog::{types::TableId, Catalog, TableSchemaBuilder},
     optimizer::types::{Column, FullScanState, PhysicalPlan},
 };
 
 use super::types::Op;
 
 pub struct Optimizer {
-    catalog: Rc<Catalog>,
+    catalog: Rc<RefCell<Catalog>>,
 }
 
 impl Optimizer {
@@ -30,13 +29,13 @@ impl Optimizer {
         }
     }
 
-    pub fn new(catalog: Rc<Catalog>) -> Self {
+    pub fn new(catalog: Rc<RefCell<Catalog>>) -> Self {
         Optimizer { catalog }
     }
 }
 
 struct PhysicalPlanBuilder {
-    catalog: Rc<Catalog>,
+    catalog: Rc<RefCell<Catalog>>,
 }
 
 impl PhysicalPlanBuilder {
@@ -46,7 +45,7 @@ impl PhysicalPlanBuilder {
                 let mut cols = Vec::new();
                 // FIXME: table is hardcoded!
                 let table_id = TableId::public("table1");
-                let table_schema = self.catalog.get_table(&table_id).unwrap();
+                let table_schema = self.catalog.as_ref().borrow().get_table(&table_id).unwrap();
 
                 for c in columns {
                     cols.push(Column::new(
@@ -79,8 +78,20 @@ impl PhysicalPlanBuilder {
                     children: self.walk(&node.children[0]),
                 }]
             }
+            Operator::CreateTable {
+                table_name,
+                columns,
+            } => {
+                let mut ts = TableSchemaBuilder::public();
+                ts.table(table_name);
+                for c in columns {
+                    ts.col(&c.column_name, c.column_type);
+                }
+
+                vec![Op::create_table(ts.build())]
+            }
             _ => {
-                panic!("Unsopported node")
+                panic!("Unsopported node {:?}", node)
             }
         }
     }
@@ -88,16 +99,17 @@ impl PhysicalPlanBuilder {
 
 #[cfg(test)]
 mod tests {
-    use std::{rc::Rc, vec};
+    use std::{cell::RefCell, rc::Rc, vec};
 
     use crate::{
         analyzer::{Analyzer, LogicalPlan},
-        catalog::{types::DataType, Catalog, TableSchemaBuilder},
+        catalog::{Catalog, TableSchemaBuilder},
         optimizer::{
             types::{Column, Op, PhysicalPlan, StorageEngine, Tuple, Val},
             Optimizer,
         },
         parser::{Lexer, Parser},
+        types::ColType,
     };
 
     fn analyze(input: &str) -> LogicalPlan {
@@ -116,12 +128,12 @@ mod tests {
 
         let ts = TableSchemaBuilder::public()
             .table("table1")
-            .col("col1", DataType::Int)
+            .col("col1", ColType::Int)
             .build();
         let _ = catalog.register_table(&ts);
         let cs = ts.get_column("col1").unwrap();
 
-        let optimizer = Optimizer::new(Rc::new(catalog));
+        let optimizer = Optimizer::new(Rc::new(RefCell::new(catalog)));
 
         let p_plan = optimizer.optimize(l_plan);
 
@@ -142,7 +154,7 @@ mod tests {
 
         let ts = TableSchemaBuilder::public()
             .table("table1")
-            .col("col1", DataType::Int)
+            .col("col1", ColType::Int)
             .build();
         let _ = catalog.register_table(&ts);
 
@@ -156,15 +168,40 @@ mod tests {
             ],
         );
 
-        let catalog_rc = Rc::new(catalog);
-        let storage_rc = Rc::new(storage);
+        let catalog_rc = Rc::new(RefCell::new(catalog));
+        let storage_rc = Rc::new(RefCell::new(storage));
 
         let optimizer = Optimizer::new(Rc::clone(&catalog_rc));
 
         let mut p_plan = optimizer.optimize(l_plan);
 
-        let tuples = p_plan.execute_all(Rc::clone(&storage_rc));
+        let tuples = p_plan.execute_all(Rc::clone(&storage_rc), Rc::clone(&catalog_rc));
 
         assert_eq!(tuples.len(), 4);
+    }
+
+    #[test]
+    fn create_table() {
+        let l_plan = analyze("CREATE TABLE table1 (col1 INT, col2 INT, col3 INT)");
+
+        let catalog = Catalog::mem();
+
+        let optimizer = Optimizer::new(Rc::new(RefCell::new(catalog)));
+
+        let p_plan = optimizer.optimize(l_plan);
+
+        assert_eq!(
+            p_plan,
+            PhysicalPlan {
+                root: Op::create_table(
+                    TableSchemaBuilder::public()
+                        .table("table1")
+                        .col("col1", ColType::Int)
+                        .col("col2", ColType::Int)
+                        .col("col3", ColType::Int)
+                        .build()
+                )
+            }
+        );
     }
 }

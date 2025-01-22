@@ -1,3 +1,5 @@
+use crate::types::ColType;
+
 #[derive(Debug, PartialEq, Hash, Eq, Clone)]
 pub struct TableId {
     schema_name: String,
@@ -90,20 +92,14 @@ impl TableSchema {
 #[derive(Debug, PartialEq, Clone)]
 pub struct ColumnSchema {
     pub id: ColumnId,
-    pub data_type: DataType,
+    pub data_type: ColType,
 }
 
 impl ColumnSchema {
-    pub fn new(id: &ColumnId, data_type: DataType) -> ColumnSchema {
+    pub fn new(id: &ColumnId, data_type: ColType) -> ColumnSchema {
         ColumnSchema {
             id: id.clone(),
             data_type,
         }
     }
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum DataType {
-    Int,
-    String,
 }

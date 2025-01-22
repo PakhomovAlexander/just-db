@@ -1,10 +1,12 @@
 use std::fmt::Display;
 
+use strum::Display;
+
 use crate::types::ColType;
 
 //#[allow(clippy::unused)]
 #[allow(dead_code)]
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Display)]
 pub enum Operator {
     Project {
         columns: Vec<Column>,

@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
-use super::types::{ColumnId, ColumnSchema, DataType, TableId, TableSchema};
+use crate::types::ColType;
+
+use super::types::{ColumnId, ColumnSchema, TableId, TableSchema};
 
 pub struct Catalog {
     store: MemoryCatalogStore,
@@ -91,7 +93,7 @@ impl TableSchemaBuilder {
         self
     }
 
-    pub fn col(&mut self, col_name: &str, data_type: DataType) -> &mut Self {
+    pub fn col(&mut self, col_name: &str, data_type: ColType) -> &mut Self {
         self.columns.push(ColumnSchema::new(
             &ColumnId::new(self.id.as_ref().unwrap(), col_name),
             data_type,
@@ -107,8 +109,6 @@ impl TableSchemaBuilder {
 
 #[cfg(test)]
 mod tests {
-    use crate::catalog::types::DataType;
-
     use super::*;
 
     fn samle_schema() -> TableSchema {
@@ -117,11 +117,11 @@ mod tests {
             vec![
                 ColumnSchema::new(
                     &ColumnId::new(&TableId::public("table1"), "col1"),
-                    DataType::Int,
+                    ColType::Int,
                 ),
                 ColumnSchema::new(
                     &ColumnId::new(&TableId::public("table1"), "col2"),
-                    DataType::String,
+                    ColType::Text,
                 ),
             ],
         )
@@ -214,8 +214,8 @@ mod tests {
     fn builder() {
         let table = TableSchemaBuilder::public()
             .table("table1")
-            .col("col1", DataType::Int)
-            .col("col2", DataType::String)
+            .col("col1", ColType::Int)
+            .col("col2", ColType::Text)
             .build();
 
         assert_eq!(
@@ -225,11 +225,11 @@ mod tests {
                 vec![
                     ColumnSchema::new(
                         &ColumnId::new(&TableId::public("table1"), "col1"),
-                        DataType::Int,
+                        ColType::Int,
                     ),
                     ColumnSchema::new(
                         &ColumnId::new(&TableId::public("table1"), "col2"),
-                        DataType::String,
+                        ColType::Text,
                     ),
                 ],
             )

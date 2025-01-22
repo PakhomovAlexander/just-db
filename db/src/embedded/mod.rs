@@ -1,15 +1,19 @@
-use std::rc::Rc;
+use std::{cell::RefCell, rc::Rc};
 
 use crate::{
     analyzer::Analyzer,
-    catalog::{types::DataType, Catalog, TableSchemaBuilder},
-    optimizer::{types::StorageEngine, types::Tuple, types::Val, Optimizer},
+    catalog::{Catalog, TableSchemaBuilder},
+    optimizer::{
+        types::{StorageEngine, Tuple, Val},
+        Optimizer,
+    },
     parser::{Lexer, Parser},
+    types::ColType,
 };
 
 pub struct Db {
-    catalog_rc: Rc<Catalog>,
-    storage_rc: Rc<StorageEngine>,
+    catalog_rc: Rc<RefCell<Catalog>>,
+    storage_rc: Rc<RefCell<StorageEngine>>,
     analyzer: Analyzer,
     optimizer: Optimizer,
 }
@@ -27,9 +31,9 @@ impl Db {
 
         let ts = TableSchemaBuilder::public()
             .table("table1")
-            .col("name", DataType::Int)
-            .col("address", DataType::Int)
-            .col("email", DataType::Int)
+            .col("name", ColType::Int)
+            .col("address", ColType::Int)
+            .col("email", ColType::Int)
             .build();
         let _ = catalog.register_table(&ts);
 
@@ -59,8 +63,8 @@ impl Db {
             ],
         );
 
-        let catalog_rc = Rc::new(catalog);
-        let storage_rc = Rc::new(storage);
+        let catalog_rc = Rc::new(RefCell::new(catalog));
+        let storage_rc = Rc::new(RefCell::new(storage));
 
         let optimizer = Optimizer::new(Rc::clone(&catalog_rc));
 
@@ -81,6 +85,6 @@ impl Db {
 
         let mut p_plan = self.optimizer.optimize(l_plan);
 
-        p_plan.execute_all(Rc::clone(&self.storage_rc))
+        p_plan.execute_all(Rc::clone(&self.storage_rc), Rc::clone(&self.catalog_rc))
     }
 }

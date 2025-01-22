@@ -1,9 +1,12 @@
-use std::{collections::HashMap, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use serde::{Deserialize, Serialize};
 use strum::Display;
 
-use crate::catalog::types::ColumnSchema;
+use crate::catalog::{
+    types::{ColumnSchema, TableSchema},
+    Catalog,
+};
 
 #[derive(Debug, PartialEq)]
 pub struct PhysicalPlan {
@@ -11,9 +14,13 @@ pub struct PhysicalPlan {
 }
 
 impl PhysicalPlan {
-    pub fn execute_all(&mut self, engine: Rc<StorageEngine>) -> Vec<Tuple> {
+    pub fn execute_all(
+        &mut self,
+        engine: Rc<RefCell<StorageEngine>>,
+        catalog: Rc<RefCell<Catalog>>,
+    ) -> Vec<Tuple> {
         let mut tuples = Vec::new();
-        self.root.open(Rc::clone(&engine));
+        self.root.open(Rc::clone(&engine), Rc::clone(&catalog));
         while let Some(t) = self.root.next() {
             tuples.push(t);
         }
@@ -98,6 +105,10 @@ pub enum Op {
         state: FullScanState,
         children: Vec<Op>,
     },
+
+    CreateTable {
+        ts: TableSchema,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -127,10 +138,14 @@ impl Op {
         Op::Filter { children }
     }
 
-    pub fn open(&mut self, engine: Rc<StorageEngine>) {
+    pub fn create_table(ts: TableSchema) -> Op {
+        Op::CreateTable { ts }
+    }
+
+    pub fn open(&mut self, engine: Rc<RefCell<StorageEngine>>, catalog: Rc<RefCell<Catalog>>) {
         match self {
             Op::FullScan { name, state, .. } => {
-                let tuples = engine.scan(name);
+                let tuples = engine.borrow_mut().scan(name);
                 let iter = FullScanIterator {
                     curr_pos: 0,
                     tuples,
@@ -140,24 +155,23 @@ impl Op {
             }
             Op::Project { children, .. } => {
                 for c in children {
-                    c.open(Rc::clone(&engine));
+                    c.open(Rc::clone(&engine), Rc::clone(&catalog));
                 }
             }
             Op::Filter { children } => {
                 for c in children {
-                    c.open(Rc::clone(&engine));
+                    c.open(Rc::clone(&engine), Rc::clone(&catalog));
                 }
+            }
+            Op::CreateTable { ts } => {
+                let _ = catalog.as_ref().borrow_mut().register_table(ts);
             }
         }
     }
 
     fn next(&mut self) -> Option<Tuple> {
         match self {
-            Op::FullScan {
-                name,
-                state,
-                children,
-            } => {
+            Op::FullScan { state, .. } => {
                 let iter = state.iterator.as_mut().unwrap();
                 if iter.curr_pos < iter.tuples.len() {
                     let t = iter.tuples[iter.curr_pos].clone();
@@ -175,6 +189,7 @@ impl Op {
                 let t = children[0].next().unwrap();
                 Some(t)
             }
+            Op::CreateTable { .. } => None,
         }
     }
 
@@ -193,6 +208,7 @@ impl Op {
                     c.close();
                 }
             }
+            Op::CreateTable { .. } => {}
         }
     }
 }
