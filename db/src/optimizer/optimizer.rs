@@ -2,9 +2,9 @@ use core::panic;
 use std::{cell::RefCell, rc::Rc};
 
 use crate::{
-    analyzer::{LogicalNode, LogicalPlan, Operator},
+    analyzer::{Constant, LogicalNode, LogicalPlan, Operator},
     catalog::{types::TableId, Catalog, TableSchemaBuilder},
-    optimizer::types::{Column, FullScanState, PhysicalPlan},
+    optimizer::types::{Column, FullScanState, PhysicalPlan, Tuple, Val},
 };
 
 use super::types::Op;
@@ -18,6 +18,7 @@ impl Optimizer {
         let root_node = l_plan.root;
 
         let mut builder = PhysicalPlanBuilder {
+            seen_tables: std::collections::HashSet::new(),
             catalog: Rc::clone(&self.catalog),
         };
 
@@ -35,6 +36,7 @@ impl Optimizer {
 }
 
 struct PhysicalPlanBuilder {
+    seen_tables: std::collections::HashSet<String>,
     catalog: Rc<RefCell<Catalog>>,
 }
 
@@ -43,7 +45,7 @@ impl PhysicalPlanBuilder {
         match &node.op {
             Operator::Project { columns } => {
                 let mut cols = Vec::new();
-                // FIXME: table is hardcoded!
+                // FIXME: get all seen tables from logical plan
                 let table_id = TableId::public("table1");
                 let table_schema = self.catalog.as_ref().borrow().get_table(&table_id).unwrap();
 
@@ -64,6 +66,8 @@ impl PhysicalPlanBuilder {
                 vec![Op::Project { cols, children }]
             }
             Operator::Read { table } => {
+                self.seen_tables.insert(table.table_name.clone());
+
                 vec![Op::FullScan {
                     name: table.table_name.clone(),
                     state: FullScanState {
@@ -90,6 +94,24 @@ impl PhysicalPlanBuilder {
 
                 vec![Op::create_table(ts.build())]
             }
+            Operator::InsertInto {
+                table_name,
+                columns,
+                values,
+            } => {
+                let mut tuples = Vec::new();
+                let mut tuple_data = Vec::new();
+                for (i, c) in columns.iter().enumerate() {
+                    let v = &values[i];
+                    match v {
+                        Constant::Num(n) => tuple_data.push((c.column_name.as_str(), Val::Int(*n))),
+                        Constant::Str(s) => panic!("String not supported yet"),
+                    }
+                }
+                tuples.push(Tuple::new(tuple_data));
+
+                vec![Op::insert_into(table_name, tuples)]
+            }
             _ => {
                 panic!("Unsopported node {:?}", node)
             }
@@ -99,6 +121,7 @@ impl PhysicalPlanBuilder {
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
     use std::{cell::RefCell, rc::Rc, vec};
 
     use crate::{
@@ -184,11 +207,12 @@ mod tests {
     fn create_table() {
         let l_plan = analyze("CREATE TABLE table1 (col1 INT, col2 INT, col3 INT)");
 
-        let catalog = Catalog::mem();
+        let catalog_rc = Rc::new(RefCell::new(Catalog::mem()));
+        let storage_rc = Rc::new(RefCell::new(StorageEngine::mem()));
 
-        let optimizer = Optimizer::new(Rc::new(RefCell::new(catalog)));
+        let optimizer = Optimizer::new(Rc::clone(&catalog_rc));
 
-        let p_plan = optimizer.optimize(l_plan);
+        let mut p_plan = optimizer.optimize(l_plan);
 
         assert_eq!(
             p_plan,
@@ -203,6 +227,36 @@ mod tests {
                 )
             }
         );
+
+        let restult = p_plan.execute_all(storage_rc, Rc::clone(&catalog_rc));
+        assert_eq!(restult.len(), 0);
+    }
+
+    #[test]
+    fn create_single_column() {
+        let l_plan = analyze("CREATE TABLE table2 (col1 INT)");
+
+        let catalog_rc = Rc::new(RefCell::new(Catalog::mem()));
+        let storage_rc = Rc::new(RefCell::new(StorageEngine::mem()));
+
+        let optimizer = Optimizer::new(Rc::clone(&catalog_rc));
+
+        let mut p_plan = optimizer.optimize(l_plan);
+
+        assert_eq!(
+            p_plan,
+            PhysicalPlan {
+                root: Op::create_table(
+                    TableSchemaBuilder::public()
+                        .table("table2")
+                        .col("col1", ColType::Int)
+                        .build()
+                )
+            }
+        );
+
+        let restult = p_plan.execute_all(storage_rc, Rc::clone(&catalog_rc));
+        assert_eq!(restult.len(), 0);
     }
 
     #[test]

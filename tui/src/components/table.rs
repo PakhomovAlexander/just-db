@@ -59,7 +59,14 @@ struct InnerTable<'a> {
 impl<'a> InnerTable<'a> {
     fn new(data: Option<Vec<Tuple>>) -> Self {
         let header: Vec<String> = match &data {
-            Some(data) => data[0].keys(),
+            Some(data) => {
+                // TODO: handle empty data
+                if data.is_empty() {
+                    Vec::new()
+                } else {
+                    data[0].keys()
+                }
+            }
             None => Vec::new(),
         };
 
