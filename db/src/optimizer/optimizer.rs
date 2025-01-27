@@ -204,4 +204,39 @@ mod tests {
             }
         );
     }
+
+    #[test]
+    fn insert_into() {
+        let l_plan = analyze("INSERT INTO table1 (col1, col2, col3) VALUES (1, 2, 3)");
+
+        let ts = TableSchemaBuilder::public()
+            .table("table1")
+            .col("col1", ColType::Int)
+            .col("col2", ColType::Int)
+            .col("col3", ColType::Int)
+            .build();
+
+        let catalog = Catalog::mem();
+        let catalog_rc = Rc::new(RefCell::new(catalog));
+
+        let _ = catalog_rc.borrow_mut().register_table(&ts);
+
+        let optimizer = Optimizer::new(catalog_rc);
+
+        let p_plan = optimizer.optimize(l_plan);
+
+        assert_eq!(
+            p_plan,
+            PhysicalPlan {
+                root: Op::insert_into(
+                    "table1",
+                    vec![Tuple::new(vec![
+                        ("col1", Val::Int(1)),
+                        ("col2", Val::Int(2)),
+                        ("col3", Val::Int(3))
+                    ])]
+                )
+            }
+        );
+    }
 }

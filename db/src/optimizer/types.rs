@@ -109,6 +109,10 @@ pub enum Op {
     CreateTable {
         ts: TableSchema,
     },
+    InsertInto {
+        table_name: String,
+        tuples: Vec<Tuple>,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -142,6 +146,13 @@ impl Op {
         Op::CreateTable { ts }
     }
 
+    pub fn insert_into(table_name: &str, tuples: Vec<Tuple>) -> Op {
+        Op::InsertInto {
+            table_name: table_name.to_string(),
+            tuples,
+        }
+    }
+
     pub fn open(&mut self, engine: Rc<RefCell<StorageEngine>>, catalog: Rc<RefCell<Catalog>>) {
         match self {
             Op::FullScan { name, state, .. } => {
@@ -165,6 +176,9 @@ impl Op {
             }
             Op::CreateTable { ts } => {
                 let _ = catalog.as_ref().borrow_mut().register_table(ts);
+            }
+            Op::InsertInto { table_name, tuples } => {
+                engine.borrow_mut().insert(table_name, tuples.clone()); //FIXME: clone
             }
         }
     }
@@ -190,6 +204,7 @@ impl Op {
                 Some(t)
             }
             Op::CreateTable { .. } => None,
+            Op::InsertInto { .. } => None,
         }
     }
 
@@ -209,6 +224,7 @@ impl Op {
                 }
             }
             Op::CreateTable { .. } => {}
+            Op::InsertInto { .. } => {}
         }
     }
 }
