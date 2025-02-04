@@ -22,7 +22,7 @@ impl Optimizer {
             catalog: Rc::clone(&self.catalog),
         };
 
-        let root_op = builder.walk(&root_node);
+        let root_op = builder.walk(&root_node, &l_plan.seen_tables);
         assert!(root_op.len() == 1);
 
         PhysicalPlan {
@@ -41,12 +41,11 @@ struct PhysicalPlanBuilder {
 }
 
 impl PhysicalPlanBuilder {
-    fn walk(&mut self, node: &LogicalNode) -> Vec<Op> {
+    fn walk(&mut self, node: &LogicalNode, seen_tables: &Vec<String>) -> Vec<Op> {
         match &node.op {
             Operator::Project { columns } => {
                 let mut cols = Vec::new();
-                // FIXME: get all seen tables from logical plan
-                let table_id = TableId::public("table1");
+                let table_id = TableId::public(seen_tables[0].as_str());
                 let table_schema = self.catalog.as_ref().borrow().get_table(&table_id).unwrap();
 
                 for c in columns {
@@ -58,7 +57,7 @@ impl PhysicalPlanBuilder {
                 let c = &node.children;
 
                 let children = if !c.is_empty() {
-                    self.walk(&c[0])
+                    self.walk(&c[0], seen_tables)
                 } else {
                     Vec::new()
                 };
@@ -79,7 +78,7 @@ impl PhysicalPlanBuilder {
             }
             Operator::Filter { .. } => {
                 vec![Op::Filter {
-                    children: self.walk(&node.children[0]),
+                    children: self.walk(&node.children[0], seen_tables),
                 }]
             }
             Operator::CreateTable {
