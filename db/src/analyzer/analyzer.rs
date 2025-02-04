@@ -1,25 +1,31 @@
 use core::panic;
-use std::vec;
+use std::{cell::RefCell, rc::Rc, vec};
 
 use crate::parser::tree::{Literal, Node, Op};
 
 use super::tree::*;
 
-pub struct Analyzer {}
+pub struct Analyzer {
+    seen_tables: Vec<String>,
+}
 
 impl Analyzer {
     pub fn new() -> Self {
-        Analyzer {}
+        Analyzer {
+            seen_tables: vec![],
+        }
     }
 
-    pub fn analyze(&self, node: &Node) -> LogicalPlan {
+    pub fn analyze(mut self, node: Node) -> LogicalPlan {
+        let logical_nodes = self.walk(node);
         LogicalPlan {
-            root: self.walk(node)[0].clone(),
+            root: logical_nodes[0].clone(),
+            seen_tables: self.seen_tables,
         }
     }
 
     #[allow(clippy::only_used_in_recursion)]
-    fn walk(&self, node: &Node) -> Vec<LogicalNode> {
+    fn walk(&mut self, node: Node) -> Vec<LogicalNode> {
         match node.op() {
             Some(Op::Select) => {
                 let children = node.children();
@@ -31,7 +37,7 @@ impl Analyzer {
 
                 vec![LogicalNode {
                     op: Operator::Project { columns },
-                    children: self.walk(&from_node),
+                    children: self.walk(from_node),
                 }]
             }
             Some(Op::From) => {
@@ -40,6 +46,9 @@ impl Analyzer {
                 let tables_node = children[0].clone();
                 let mut walker = TableWalker::new();
                 let tables = walker.walk(&tables_node);
+
+                self.seen_tables
+                    .append(&mut tables.iter().map(|t| t.table_name.clone()).collect());
 
                 let mut nodes = vec![];
 
@@ -54,7 +63,7 @@ impl Analyzer {
 
                 let where_node = children[children.len() - 1].clone();
                 if where_node.op() == Some(Op::Where) {
-                    let where_l_node = self.walk(&where_node);
+                    let where_l_node = self.walk(where_node);
                     let n = LogicalNode {
                         op: Operator::Filter {
                             node: Box::new(where_l_node[0].clone()),
@@ -76,13 +85,19 @@ impl Analyzer {
             }
             Some(Op::CreateTable) => {
                 let mut walker = CreateTableWalker::new();
+                let l_node = walker.walk(&node);
 
-                vec![walker.walk(node)]
+                self.seen_tables.append(&mut walker.seen_tables);
+
+                vec![l_node]
             }
             Some(Op::InsertInto) => {
                 let mut walker = InsertIntoWalker::new();
+                let l_node = walker.walk(&node);
 
-                vec![walker.walk(node)]
+                self.seen_tables.append(&mut walker.seen_tables);
+
+                vec![l_node]
             }
             None => {
                 panic!("unexpected node: {:?}", node);
@@ -219,11 +234,15 @@ impl WhereWalker {
     }
 }
 
-struct CreateTableWalker {}
+struct CreateTableWalker {
+    seen_tables: Vec<String>,
+}
 
 impl CreateTableWalker {
     fn new() -> Self {
-        CreateTableWalker {}
+        CreateTableWalker {
+            seen_tables: vec![],
+        }
     }
 
     fn walk(&mut self, node: &Node) -> LogicalNode {
@@ -237,6 +256,7 @@ impl CreateTableWalker {
             _ => panic!("unexpected node: {:?}", node),
         };
         let columns = &children[1];
+        self.seen_tables.push(table_name.to_string());
 
         LogicalNode {
             op: Operator::CreateTable {
@@ -286,11 +306,15 @@ impl CreateTableWalker {
     }
 }
 
-struct InsertIntoWalker {}
+struct InsertIntoWalker {
+    seen_tables: Vec<String>,
+}
 
 impl InsertIntoWalker {
     fn new() -> Self {
-        InsertIntoWalker {}
+        InsertIntoWalker {
+            seen_tables: vec![],
+        }
     }
 
     fn walk(&mut self, node: &Node) -> LogicalNode {
@@ -305,6 +329,8 @@ impl InsertIntoWalker {
         };
         let columns = &children[1];
         let values = &children[2];
+
+        self.seen_tables.push(table_name.to_string());
 
         LogicalNode {
             op: Operator::InsertInto {
@@ -481,8 +507,8 @@ mod tests {
         }
     }
 
-    fn plan(root: LogicalNode) -> LogicalPlan {
-        LogicalPlan { root }
+    fn plan(root: LogicalNode, seen_tables: Vec<String>) -> LogicalPlan {
+        LogicalPlan { root, seen_tables }
     }
 
     fn analyze(input: &str) -> LogicalPlan {
@@ -490,17 +516,20 @@ mod tests {
         let mut parser = Parser::new(lexer);
         let analyzer = Analyzer::new();
 
-        analyzer.analyze(&parser.parse())
+        analyzer.analyze(parser.parse())
     }
 
     #[test]
     fn simple_test() {
         assert_eq!(
             analyze("SELECT col1 FROM table1"),
-            plan(node(
-                project(vec![column("col1")]),
-                vec![leaf(read(table("table1")))]
-            ))
+            plan(
+                node(
+                    project(vec![column("col1")]),
+                    vec![leaf(read(table("table1")))]
+                ),
+                vec!["table1".to_string()]
+            )
         );
     }
 
@@ -508,10 +537,13 @@ mod tests {
     fn select_many_columns() {
         assert_eq!(
             analyze("SELECT col1, col2, col3 FROM table1"),
-            plan(node(
-                project(vec![column("col1"), column("col2"), column("col3")]),
-                vec![leaf(read(table("table1")))]
-            ))
+            plan(
+                node(
+                    project(vec![column("col1"), column("col2"), column("col3")]),
+                    vec![leaf(read(table("table1")))]
+                ),
+                vec!["table1".to_string()]
+            )
         );
     }
 
@@ -519,10 +551,13 @@ mod tests {
     fn select_from_many_tables() {
         assert_eq!(
             analyze("SELECT col1 FROM table1, table2"),
-            plan(node(
-                project(vec![column("col1")]),
-                vec![leaf(read(table("table1"))), leaf(read(table("table2")))]
-            ))
+            plan(
+                node(
+                    project(vec![column("col1")]),
+                    vec![leaf(read(table("table1"))), leaf(read(table("table2")))]
+                ),
+                vec!["table1".to_string(), "table2".to_string(),]
+            )
         );
     }
 
@@ -530,13 +565,16 @@ mod tests {
     fn select_from_where() {
         assert_eq!(
             analyze("SELECT col1 FROM table1 WHERE col2 = 1"),
-            plan(node(
-                project(vec![column("col1")]),
-                vec![node(
-                    filter(leaf(eq(leaf(col("col2")), leaf(cons_int(1))))),
-                    vec![leaf(read(table("table1")))]
-                ),]
-            ))
+            plan(
+                node(
+                    project(vec![column("col1")]),
+                    vec![node(
+                        filter(leaf(eq(leaf(col("col2")), leaf(cons_int(1))))),
+                        vec![leaf(read(table("table1")))]
+                    ),]
+                ),
+                vec!["table1".to_string()]
+            )
         );
     }
 
@@ -544,16 +582,19 @@ mod tests {
     fn select_from_where_with_string() {
         assert_eq!(
             analyze("SELECT col1 FROM table1 WHERE col2 = 'I am a string!'"),
-            plan(node(
-                project(vec![column("col1")]),
-                vec![node(
-                    filter(leaf(eq(
-                        leaf(col("col2")),
-                        leaf(cons_str("I am a string!"))
-                    ))),
-                    vec![leaf(read(table("table1")))]
-                ),]
-            ))
+            plan(
+                node(
+                    project(vec![column("col1")]),
+                    vec![node(
+                        filter(leaf(eq(
+                            leaf(col("col2")),
+                            leaf(cons_str("I am a string!"))
+                        ))),
+                        vec![leaf(read(table("table1")))]
+                    ),]
+                ),
+                vec!["table1".to_string()]
+            )
         );
     }
 
@@ -561,17 +602,20 @@ mod tests {
     fn create_table_test() {
         assert_eq!(
             analyze("CREATE TABLE table1 (col1 INT, col2 INT, col3 INT)"),
-            plan(node(
-                create_table(
-                    "table1",
-                    vec![
-                        col_def("col1", ColType::Int),
-                        col_def("col2", ColType::Int),
-                        col_def("col3", ColType::Int)
-                    ]
+            plan(
+                node(
+                    create_table(
+                        "table1",
+                        vec![
+                            col_def("col1", ColType::Int),
+                            col_def("col2", ColType::Int),
+                            col_def("col3", ColType::Int)
+                        ]
+                    ),
+                    vec![]
                 ),
-                vec![]
-            ))
+                vec!["table1".to_string()]
+            )
         );
     }
 
@@ -579,14 +623,17 @@ mod tests {
     fn insert_into_table() {
         assert_eq!(
             analyze("INSERT INTO table1 (col1, col2, col3) values (1, 22, 333)"),
-            plan(node(
-                insert_into(
-                    "table1",
-                    vec![column("col1"), column("col2"), column("col3")],
-                    vec![constant(1), constant(22), constant(333)]
+            plan(
+                node(
+                    insert_into(
+                        "table1",
+                        vec![column("col1"), column("col2"), column("col3")],
+                        vec![constant(1), constant(22), constant(333)]
+                    ),
+                    vec![]
                 ),
-                vec![]
-            ))
+                vec!["table1".to_string()]
+            )
         );
     }
 }

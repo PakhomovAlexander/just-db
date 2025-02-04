@@ -81,7 +81,7 @@ impl Db {
         let mut parser = Parser::new(lexer);
         let analyzer = Analyzer::new();
 
-        let l_plan = analyzer.analyze(&parser.parse());
+        let l_plan = analyzer.analyze(parser.parse());
 
         let mut p_plan = self.optimizer.optimize(l_plan);
 

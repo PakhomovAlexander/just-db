@@ -129,6 +129,7 @@ pub struct LogicalNode {
 #[derive(Debug, PartialEq, Clone)]
 pub struct LogicalPlan {
     pub root: LogicalNode,
+    pub seen_tables: Vec<String>,
 }
 
 impl Display for LogicalPlan {

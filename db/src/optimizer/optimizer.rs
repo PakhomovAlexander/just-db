@@ -140,7 +140,7 @@ mod tests {
         let mut parser = Parser::new(lexer);
         let analyzer = Analyzer::new();
 
-        analyzer.analyze(&parser.parse())
+        analyzer.analyze(parser.parse())
     }
 
     #[test]
