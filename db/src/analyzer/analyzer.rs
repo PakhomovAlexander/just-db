@@ -1,5 +1,5 @@
 use core::panic;
-use std::{cell::RefCell, rc::Rc, vec};
+use std::vec;
 
 use crate::parser::tree::{Literal, Node, Op};
 

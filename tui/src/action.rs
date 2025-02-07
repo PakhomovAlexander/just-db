@@ -19,6 +19,7 @@ pub enum Action {
 
     ToEditingMode,
     ToNormalMode,
+    ClearEditor,
 
     Typed(KeyEvent),
     TextUpdated(String),
@@ -26,4 +27,6 @@ pub enum Action {
     QueryResultReceived(Vec<Tuple>),
     ExecuteQueryRequested,
     ExecuteQuery(String),
+
+    UpdateStatusBar(String),
 }

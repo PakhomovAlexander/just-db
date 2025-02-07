@@ -11,7 +11,7 @@ use tracing::{debug, info};
 
 use crate::{
     action::Action,
-    components::{editor::Editor, fps::FpsCounter, table::Table, Component},
+    components::{editor::Editor, fps::FpsCounter, status_bar::StatusBar, table::Table, Component},
     config::Config,
     layout::AppLayout,
     tui::{Event, Tui},
@@ -50,6 +50,7 @@ impl App {
                 Box::new(Editor::new()),
                 Box::new(Table::new()),
                 Box::new(FpsCounter::default()),
+                Box::new(StatusBar::default()),
             ],
             should_quit: false,
             should_suspend: false,
@@ -207,8 +208,12 @@ impl App {
                 }
                 Action::ExecuteQuery(query) => {
                     let tuples = self.db.run_query(&query.clone());
+                    let cnt = tuples.len();
                     let query_result_received = Action::QueryResultReceived(tuples);
                     self.action_tx.send(query_result_received)?;
+                    self.action_tx.send(Action::UpdateStatusBar(
+                        format!("rows get: {}, query: {}", cnt, &query.clone()).to_string(),
+                    ))?;
                 }
                 _ => {}
             }

@@ -55,6 +55,13 @@ impl Component for Editor {
                     .unwrap()
                     .send(Action::TextUpdated(text))?;
             }
+            Action::ClearEditor => {
+                self.editor_state.lines.clear();
+                self.command_tx
+                    .as_ref()
+                    .unwrap()
+                    .send(Action::TextUpdated(String::new()))?;
+            }
             _ => {}
         }
         Ok(None)
