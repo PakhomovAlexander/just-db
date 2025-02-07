@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tracing::{debug, info};
 
+use crate::components::help_popup::HelpPopup;
 use crate::{
     action::Action,
     components::{editor::Editor, fps::FpsCounter, status_bar::StatusBar, table::Table, Component},
@@ -51,6 +52,8 @@ impl App {
                 Box::new(Table::new()),
                 Box::new(FpsCounter::default()),
                 Box::new(StatusBar::default()),
+                // must be last
+                Box::new(HelpPopup::default()),
             ],
             should_quit: false,
             should_suspend: false,

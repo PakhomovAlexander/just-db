@@ -10,6 +10,7 @@ use crate::{action::Action, config::Config, tui::Event};
 
 pub mod editor;
 pub mod fps;
+pub mod help_popup;
 pub mod status_bar;
 pub mod table;
 
