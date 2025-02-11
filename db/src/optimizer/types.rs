@@ -50,7 +50,14 @@ impl StorageEngine {
     pub fn insert(&mut self, table_name: &str, tuples: Vec<Tuple>) {
         match self {
             StorageEngine::Memory(engine) => {
-                engine.tables.insert(table_name.to_string(), tuples);
+                if !engine.tables.contains_key(table_name) {
+                    engine.tables.insert(table_name.to_string(), tuples);
+                } else {
+                    let rows_in_table = engine.tables.get_mut(table_name).unwrap();
+                    for t in tuples {
+                        rows_in_table.push(t); //FIXME: batch
+                    }
+                }
             }
         }
     }

@@ -29,40 +29,6 @@ impl Db {
         let mut catalog = Catalog::mem();
         let mut storage = StorageEngine::mem();
 
-        let ts = TableSchemaBuilder::public()
-            .table("table1")
-            .col("name", ColType::Int)
-            .col("address", ColType::Int)
-            .col("email", ColType::Int)
-            .build();
-        let _ = catalog.register_table(&ts);
-
-        storage.insert(
-            "table1",
-            vec![
-                Tuple::new(vec![
-                    ("name", Val::Int(1)),
-                    ("address", Val::Int(2)),
-                    ("email", Val::Int(10)),
-                ]),
-                Tuple::new(vec![
-                    ("name", Val::Int(111)),
-                    ("address", Val::Int(2222)),
-                    ("email", Val::Int(10000)),
-                ]),
-                Tuple::new(vec![
-                    ("name", Val::Int(13211)),
-                    ("address", Val::Int(2)),
-                    ("email", Val::Int(10)),
-                ]),
-                Tuple::new(vec![
-                    ("name", Val::Int(1)),
-                    ("address", Val::Int(2)),
-                    ("email", Val::Int(10)),
-                ]),
-            ],
-        );
-
         let catalog_rc = Rc::new(RefCell::new(catalog));
         let storage_rc = Rc::new(RefCell::new(storage));
 

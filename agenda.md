@@ -6,15 +6,13 @@
 
 Today we are going to:
 
-- [x] project updates
 
-- [ ] fix UIX bugs
+- [ ] integration tests
 
 - [ ] improve Lexer and Parser
   - [ ] get rid of panic!
   - [ ] Use mathces! in Lexer
 
-- [ ] e2e tests
 
 
 
