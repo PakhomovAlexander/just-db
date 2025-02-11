@@ -142,28 +142,7 @@ impl App {
             Some(action) => {
                 info!("Got action: {action:?}");
                 if *action == Action::D {
-                    let a = Action::QueryResultReceived(vec![
-                        Tuple::new(vec![
-                            ("col1", Val::Int(1)),
-                            ("col2", Val::String("Hii1".to_string())),
-                            ("col3", Val::Int(111)),
-                        ]),
-                        Tuple::new(vec![
-                            ("col1", Val::Int(2)),
-                            ("col2", Val::String("Hii2".to_string())),
-                            ("col3", Val::Int(222)),
-                        ]),
-                        Tuple::new(vec![
-                            ("col1", Val::Int(3)),
-                            ("col2", Val::String("Hii3".to_string())),
-                            ("col3", Val::Int(333)),
-                        ]),
-                        Tuple::new(vec![
-                            ("col1", Val::Int(4)),
-                            ("col2", Val::String("Hii4".to_string())),
-                            ("col3", Val::Int(444)),
-                        ]),
-                    ]);
+                    // TODO: Remove this debug action
                     action_tx.send(a.clone())?;
                 } else {
                     action_tx.send(action.clone())?;
