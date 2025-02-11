@@ -1,8 +1,6 @@
 use color_eyre::Result;
 use ratatui::{
     layout::Rect,
-    style::{Style, Stylize},
-    text::Span,
     widgets::{Block, Clear, Paragraph},
     Frame,
 };
