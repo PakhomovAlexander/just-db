@@ -2,13 +2,12 @@ use std::{cell::RefCell, rc::Rc};
 
 use crate::{
     analyzer::Analyzer,
-    catalog::{Catalog, TableSchemaBuilder},
+    catalog::Catalog,
     optimizer::{
-        types::{StorageEngine, Tuple, Val},
+        types::{StorageEngine, Tuple},
         Optimizer,
     },
     parser::{Lexer, Parser},
-    types::ColType,
 };
 
 pub struct Db {
@@ -26,8 +25,8 @@ impl Default for Db {
 
 impl Db {
     pub fn new() -> Self {
-        let mut catalog = Catalog::mem();
-        let mut storage = StorageEngine::mem();
+        let catalog = Catalog::mem();
+        let storage = StorageEngine::mem();
 
         let catalog_rc = Rc::new(RefCell::new(catalog));
         let storage_rc = Rc::new(RefCell::new(storage));

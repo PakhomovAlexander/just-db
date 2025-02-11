@@ -142,8 +142,7 @@ impl App {
             Some(action) => {
                 info!("Got action: {action:?}");
                 if *action == Action::D {
-                    // TODO: Remove this debug action
-                    action_tx.send(a.clone())?;
+                    // nothing
                 } else {
                     action_tx.send(action.clone())?;
                 }
