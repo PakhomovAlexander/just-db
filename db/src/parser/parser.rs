@@ -40,7 +40,7 @@ impl<'a> Parser<'a> {
 
                 match self.lexer.next() {
                     Some(Ok(Token::CloseParen)) => lhs,
-                    s => panic!("Unexpected token: {:?}", s),
+                    s => panic!("Unexpected token: {:?}", s.start_pos, s.end_pos),
                 }
             }
             Some(Ok(Token::Select)) => self.parse_select(min_bp),
@@ -389,6 +389,13 @@ mod tests {
     #[test]
     fn mininmal_expression_parser() {
         assert_eq!(parse("1"), leaf(num(1)));
+    }
+
+    #[test]
+    fn unexpected_token() {
+        let input = "1 2";
+
+        let err = parse("(1 +");
     }
 
     #[test]

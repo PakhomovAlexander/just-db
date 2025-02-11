@@ -7,7 +7,7 @@
 Today we are going to:
 
 
-- [ ] integration tests
+- [x] integration tests
 
 - [ ] improve Lexer and Parser
   - [ ] get rid of panic!

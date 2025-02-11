@@ -1,6 +1,13 @@
 use super::LexError;
 
 #[derive(Debug, PartialEq, Clone)]
+pub struct PositionedToken<'a> {
+    pub token: Token<'a>,
+    pub start: usize,
+    pub end: usize,
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub enum Token<'a> {
     Select,
     From,

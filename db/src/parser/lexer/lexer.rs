@@ -1,5 +1,5 @@
 use super::errors::LexError;
-use super::tokens::Token;
+use super::tokens::{PositionedToken, Token};
 
 pub struct Lexer<'a> {
     input: &'a str,
@@ -7,11 +7,11 @@ pub struct Lexer<'a> {
     current_position: usize,
     is_finished: bool,
     cache: Option<char>,
-    peeked: Option<Result<Token<'a>, LexError>>,
+    peeked: Option<Result<PositionedToken<'a>, LexError>>,
 }
 
 impl<'a> Iterator for Lexer<'a> {
-    type Item = Result<Token<'a>, LexError>;
+    type Item = Result<PositionedToken<'a>, LexError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.peeked.is_some() {
@@ -37,9 +37,21 @@ impl<'a> Iterator for Lexer<'a> {
             '\'' => self.may_be_longer(Token::SingleQuote),
             '"' => self.may_be_longer(Token::DoubleQuote),
 
-            '(' => Some(Ok(Token::OpenParen)),
-            ')' => Some(Ok(Token::CloseParen)),
-            ';' => Some(Ok(Token::Semicolon)),
+            '(' => Some(Ok(PositionedToken {
+                token: Token::OpenParen,
+                start: self.current_position - 1,
+                end: self.current_position,
+            })),
+            ')' => Some(Ok(PositionedToken {
+                token: Token::CloseParen,
+                start: self.current_position - 1,
+                end: self.current_position,
+            })),
+            ';' => Some(Ok(PositionedToken {
+                token: Token::Semicolon,
+                start: self.current_position - 1,
+                end: self.current_position,
+            })),
 
             c if c.is_alphabetic() => self.word_started(),
             c if c.is_numeric() => self.numeric_started(false),
@@ -90,18 +102,27 @@ impl<'a> Lexer<'a> {
         self.current_position - 1
     }
 
-    fn lex_err(&self, c: char) -> Option<Result<Token<'a>, LexError>> {
+    fn lex_err(&self, c: char) -> Option<Result<PositionedToken<'a>, LexError>> {
         Some(Err(LexError::InvalidCharacter(
             c,
             self.current_position - 1,
         )))
     }
 
-    fn single(&mut self, token: Token<'a>) -> Option<Result<Token<'a>, LexError>> {
+    fn single(&mut self, token: Token<'a>) -> Option<Result<PositionedToken<'a>, LexError>> {
+        let start = self.current_position - 1;
         match self.get_next_and_increment() {
-            Some(c) if c.is_whitespace() => Some(Ok(token)),
+            Some(c) if c.is_whitespace() => Some(Ok(PositionedToken {
+                token,
+                start,
+                end: self.current_position,
+            })),
             Some(c) => self.lex_err(c),
-            None => Some(Ok(token)),
+            None => Some(Ok(PositionedToken {
+                token,
+                start,
+                end: self.current_position,
+            })),
         }
     }
 
@@ -121,7 +142,7 @@ impl<'a> Lexer<'a> {
         None
     }
 
-    fn may_be_longer(&mut self, first: Token<'a>) -> Option<Result<Token<'a>, LexError>> {
+    fn may_be_longer(&mut self, first: Token<'a>) -> Option<Result<PositionedToken<'a>, LexError>> {
         if first == Token::SingleQuote || first == Token::DoubleQuote {
             return self.quote_started(first);
         }
@@ -167,7 +188,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn word_started(&mut self) -> Option<Result<Token<'a>, LexError>> {
+    fn word_started(&mut self) -> Option<Result<PositionedToken<'a>, LexError>> {
         let started_position = self.get_last_token_end();
 
         let is_word = |c: Option<char>| -> bool {
@@ -231,7 +252,7 @@ impl<'a> Lexer<'a> {
         Some(Ok(Token::StringLiteral(literal.to_string())))
     }
 
-    fn numeric_started(&mut self, has_sign: bool) -> Option<Result<Token<'a>, LexError>> {
+    fn numeric_started(&mut self, has_sign: bool) -> Option<Result<PositionedToken<'a>, LexError>> {
         let is_numeric = |c: Option<char>| -> bool {
             match c {
                 Some(n) => n.is_numeric(),
