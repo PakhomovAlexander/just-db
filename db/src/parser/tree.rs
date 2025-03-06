@@ -54,6 +54,8 @@ pub enum Node {
     Infix(Op, Vec<Node>),
     Prefix(Op, Vec<Node>),
     Postfix(Op, Vec<Node>),
+
+    Error(String), // TODO: should not be a string
 }
 
 impl Node {

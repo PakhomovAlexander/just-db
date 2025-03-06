@@ -73,7 +73,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    pub fn peek(&mut self) -> Option<Result<Token<'a>, LexError>> {
+    pub fn peek(&mut self) -> Option<Result<PositionedToken<'a>, LexError>> {
         if self.peeked.is_some() {
             return self.peeked.clone();
         }
@@ -151,41 +151,52 @@ impl<'a> Lexer<'a> {
 
         match first {
             Token::LessThan => match second {
-                Some('=') => Some(Ok(Token::LessThanOrEquals)),
-                Some('>') => Some(Ok(Token::NotEquals)),
-                Some(' ') => Some(Ok(Token::LessThan)),
+                Some('=') => self.positioned(Token::LessThanOrEquals, 2),
+                Some('>') => self.positioned(Token::NotEquals, 2),
+                Some(' ') => self.positioned(Token::LessThan, 1),
 
                 Some(c) => self.lex_err(c),
 
-                None => Some(Ok(Token::LessThan)),
+                None => self.positioned(Token::LessThan, 1),
             },
             Token::GreaterThan => match second {
-                Some('=') => Some(Ok(Token::GreaterThanOrEquals)),
-                Some(' ') => Some(Ok(Token::GreaterThan)),
+                Some('=') => self.positioned(Token::GreaterThanOrEquals, 2),
+                Some(' ') => self.positioned(Token::GreaterThan, 1),
 
                 Some(c) => self.lex_err(c),
 
-                None => Some(Ok(Token::GreaterThan)),
+                None => self.positioned(Token::GreaterThan, 1),
             },
             Token::Slash => match second {
-                Some(' ') => Some(Ok(Token::Slash)),
                 Some('*') => self.multi_line_comment_started(),
+                Some(' ') => self.positioned(Token::Slash, 1),
 
                 Some(c) => self.lex_err(c),
 
-                None => Some(Ok(Token::Slash)),
+                None => self.positioned(Token::Slash, 1),
             },
             Token::Minus => match second {
-                Some(' ') => Some(Ok(Token::Minus)),
+                Some(' ') => self.positioned(Token::Minus, 1),
                 Some('-') => self.single_line_comment_started(),
 
                 Some(c) if c.is_numeric() => self.numeric_started(true),
                 Some(c) => self.lex_err(c),
 
-                None => Some(Ok(Token::Minus)),
+                None => self.positioned(Token::Minus, 1),
             },
             _ => self.lex_err(second.unwrap()),
         }
+    }
+
+    fn positioned(
+        &self,
+        token: Token<'a>,
+        len: usize,
+    ) -> Option<Result<PositionedToken<'a>, LexError>> {
+        let start = self.current_position - len;
+        let end = self.current_position;
+
+        Some(Ok(PositionedToken { token, start, end }))
     }
 
     fn word_started(&mut self) -> Option<Result<PositionedToken<'a>, LexError>> {
@@ -225,10 +236,10 @@ impl<'a> Lexer<'a> {
 
         let word = &self.input[started_position..self.get_last_token_end()];
 
-        Token::from_str(word)
+        PositionedToken::from_str(word, started_position)
     }
 
-    fn quote_started(&mut self, quote: Token<'a>) -> Option<Result<Token<'a>, LexError>> {
+    fn quote_started(&mut self, quote: Token<'a>) -> Option<Result<PositionedToken<'a>, LexError>> {
         let same_quote = |q: Option<char>| -> bool {
             match q {
                 Some('\'') => quote == Token::SingleQuote,
@@ -249,7 +260,12 @@ impl<'a> Lexer<'a> {
 
         let literal = &self.input[started_position..self.get_last_token_end()];
 
-        Some(Ok(Token::StringLiteral(literal.to_string())))
+        let token = Token::StringLiteral(literal.to_string());
+        Some(Ok(PositionedToken {
+            token,
+            start: started_position,
+            end: self.get_last_token_end(),
+        }))
     }
 
     fn numeric_started(&mut self, has_sign: bool) -> Option<Result<PositionedToken<'a>, LexError>> {
@@ -290,10 +306,15 @@ impl<'a> Lexer<'a> {
             literal.to_string()
         };
 
-        Some(Ok(Token::NumericLiteral(string_representation)))
+        let token = Token::NumericLiteral(string_representation);
+        Some(Ok(PositionedToken {
+            token,
+            start: started_position,
+            end: self.get_last_token_end(),
+        }))
     }
 
-    fn single_line_comment_started(&mut self) -> Option<Result<Token<'a>, LexError>> {
+    fn single_line_comment_started(&mut self) -> Option<Result<PositionedToken<'a>, LexError>> {
         let started_position = self.current_position;
         loop {
             let c = self.get_next_and_increment();
@@ -304,10 +325,15 @@ impl<'a> Lexer<'a> {
 
         let comment = &self.input[started_position..self.get_last_token_end()];
 
-        Some(Ok(Token::SingleLineComment(comment.to_string())))
+        let token = Token::SingleLineComment(comment.to_string());
+        Some(Ok(PositionedToken {
+            token,
+            start: started_position,
+            end: self.get_last_token_end(),
+        }))
     }
 
-    fn multi_line_comment_started(&mut self) -> Option<Result<Token<'a>, LexError>> {
+    fn multi_line_comment_started(&mut self) -> Option<Result<PositionedToken<'a>, LexError>> {
         let started_position = self.current_position;
         loop {
             let c = self.get_next_and_increment();
@@ -321,13 +347,18 @@ impl<'a> Lexer<'a> {
 
         let comment = &self.input[started_position..self.current_position - 2];
 
-        Some(Ok(Token::MultiLineComment(comment.to_string())))
+        let token = Token::MultiLineComment(comment.to_string());
+        Some(Ok(PositionedToken {
+            token,
+            start: started_position,
+            end: self.get_last_token_end(),
+        }))
     }
 
     fn identifier_dot_started(
         &mut self,
         started_position: usize,
-    ) -> Option<Result<Token<'a>, LexError>> {
+    ) -> Option<Result<PositionedToken<'a>, LexError>> {
         let first_dot_position = self.current_position;
         let mut second_dot_position = 0;
         let mut third_dot_position = 0;
@@ -375,10 +406,16 @@ impl<'a> Lexer<'a> {
             None
         };
 
-        Some(Ok(Token::Identifier {
+        let token = Token::Identifier {
             first_name,
             second_name: Some(second_name),
             third_name,
+        };
+
+        Some(Ok(PositionedToken {
+            token,
+            start: started_position,
+            end: self.get_last_token_end(),
         }))
     }
 
@@ -397,11 +434,15 @@ mod tests {
     use pretty_assertions::assert_eq;
     use rstest::rstest;
 
+    fn collect(lexer: Lexer) -> Vec<Result<Token, LexError>> {
+        return lexer.into_iter().map(|r| r.map(|pt| pt.token)).collect();
+    }
+
     #[test]
     fn lex_empty_input() {
         let input = "";
         let lexer = Lexer::new(input);
-        let actual: Vec<Result<Token, LexError>> = lexer.collect();
+        let actual: Vec<Result<Token, LexError>> = collect(lexer);
 
         let expected = vec![];
 
@@ -412,7 +453,7 @@ mod tests {
     fn lex_whitespace() {
         let input = "   ";
         let lexer = Lexer::new(input);
-        let actual: Vec<Result<Token, LexError>> = lexer.collect();
+        let actual: Vec<Result<Token, LexError>> = collect(lexer);
 
         let expected = vec![];
 
@@ -423,7 +464,7 @@ mod tests {
     fn lex_error() {
         let input = "**";
         let lexer = Lexer::new(input);
-        let actual: Vec<Result<Token, LexError>> = lexer.collect();
+        let actual: Vec<Result<Token, LexError>> = collect(lexer);
 
         let expected = vec![Err(LexError::InvalidCharacter('*', 1))];
 
@@ -435,7 +476,7 @@ mod tests {
         let input = "1 + 2";
         let lexer = Lexer::new(input);
 
-        let actual: Vec<Result<Token, LexError>> = lexer.collect();
+        let actual: Vec<Result<Token, LexError>> = collect(lexer);
 
         let expected = vec![
             Ok(Token::NumericLiteral("1".to_string())),
@@ -450,7 +491,7 @@ mod tests {
     fn lex_single_chars() {
         let input = "* , ; ( ) = < >   + - / % |";
         let lexer = Lexer::new(input);
-        let actual: Vec<Result<Token, LexError>> = lexer.collect();
+        let actual: Vec<Result<Token, LexError>> = collect(lexer);
 
         let expected = vec![
             Ok(Token::Asterisk),
@@ -475,7 +516,7 @@ mod tests {
     fn lex_longer_tokens() {
         let input = "<= >= <>";
         let lexer = Lexer::new(input);
-        let actual: Vec<Result<Token, LexError>> = lexer.collect();
+        let actual: Vec<Result<Token, LexError>> = collect(lexer);
 
         let expected = vec![
             Ok(Token::LessThanOrEquals),
@@ -490,7 +531,7 @@ mod tests {
     fn lex_keywords() {
         let input = "select from where insert into values update set delete create table primary key foreign references drop alter add column constraint index join inner left right full outer on group by order asc desc union all distinct limit offset having as and or not null is in between like exists any case when then else end default";
         let lexer = Lexer::new(input);
-        let actual: Vec<Result<Token, LexError>> = lexer.collect();
+        let actual: Vec<Result<Token, LexError>> = collect(lexer);
 
         let expected = vec![
             Ok(Token::Select),
@@ -558,7 +599,7 @@ mod tests {
     fn string_literals() {
         let input = "'hello' 'world'";
         let lexer = Lexer::new(input);
-        let actual: Vec<Result<Token, LexError>> = lexer.collect();
+        let actual: Vec<Result<Token, LexError>> = collect(lexer);
 
         let expected = vec![
             Ok(Token::StringLiteral("hello".to_string())),
@@ -572,7 +613,7 @@ mod tests {
     fn string_literal_with_escape() {
         let input = "'hello \"world\"'";
         let lexer = Lexer::new(input);
-        let actual: Vec<Result<Token, LexError>> = lexer.collect();
+        let actual: Vec<Result<Token, LexError>> = collect(lexer);
 
         let expected = vec![Ok(Token::StringLiteral("hello \"world\"".to_string()))];
 
@@ -583,7 +624,7 @@ mod tests {
     fn numeric_literals() {
         let input = "123 456.789 -123 -456.789";
         let lexer = Lexer::new(input);
-        let actual: Vec<Result<Token, LexError>> = lexer.collect();
+        let actual: Vec<Result<Token, LexError>> = collect(lexer);
 
         let expected = vec![
             Ok(Token::NumericLiteral("123".to_string())),
@@ -599,7 +640,7 @@ mod tests {
     fn boolean_literals() {
         let input = "true false";
         let lexer = Lexer::new(input);
-        let actual: Vec<Result<Token, LexError>> = lexer.collect();
+        let actual: Vec<Result<Token, LexError>> = collect(lexer);
 
         let expected = vec![
             Ok(Token::BooleanLiteral(true)),
@@ -613,7 +654,7 @@ mod tests {
     fn date_literals() {
         let input = "DATE '2021-01-01'";
         let lexer = Lexer::new(input);
-        let actual: Vec<Result<Token, LexError>> = lexer.collect();
+        let actual: Vec<Result<Token, LexError>> = collect(lexer);
 
         let expected = vec![
             Ok(Token::Date),
@@ -627,7 +668,7 @@ mod tests {
     fn time_literals() {
         let input = "TIME '12:34:56'";
         let lexer = Lexer::new(input);
-        let actual: Vec<Result<Token, LexError>> = lexer.collect();
+        let actual: Vec<Result<Token, LexError>> = collect(lexer);
 
         let expected = vec![
             Ok(Token::Time),
@@ -641,7 +682,7 @@ mod tests {
     fn datetime_literals() {
         let input = "DATETIME '2021-01-01 12:34:56'";
         let lexer = Lexer::new(input);
-        let actual: Vec<Result<Token, LexError>> = lexer.collect();
+        let actual: Vec<Result<Token, LexError>> = collect(lexer);
 
         let expected = vec![
             Ok(Token::DateTime),
@@ -655,7 +696,7 @@ mod tests {
     fn single_line_comment() {
         let input = "-- this is a comment";
         let lexer = Lexer::new(input);
-        let actual: Vec<Result<Token, LexError>> = lexer.collect();
+        let actual: Vec<Result<Token, LexError>> = collect(lexer);
 
         let expected = vec![Ok(Token::SingleLineComment(
             " this is a comment".to_string(),
@@ -668,7 +709,7 @@ mod tests {
     fn single_line_comment_with_other_tokens() {
         let input = "select * -- this is a comment\n from table1";
         let lexer = Lexer::new(input);
-        let actual: Vec<Result<Token, LexError>> = lexer.collect();
+        let actual: Vec<Result<Token, LexError>> = collect(lexer);
 
         let expected = vec![
             Ok(Token::Select),
@@ -685,7 +726,7 @@ mod tests {
     fn multi_line_comment() {
         let input = "/* this is a comment */";
         let lexer = Lexer::new(input);
-        let actual: Vec<Result<Token, LexError>> = lexer.collect();
+        let actual: Vec<Result<Token, LexError>> = collect(lexer);
 
         let expected = vec![Ok(Token::MultiLineComment(
             " this is a comment ".to_string(),
@@ -698,7 +739,7 @@ mod tests {
     fn really_multi_line_comment() {
         let input = "/* this is \n a comment */";
         let lexer = Lexer::new(input);
-        let actual: Vec<Result<Token, LexError>> = lexer.collect();
+        let actual: Vec<Result<Token, LexError>> = collect(lexer);
 
         let expected = vec![Ok(Token::MultiLineComment(
             " this is \n a comment ".to_string(),
@@ -711,7 +752,7 @@ mod tests {
     fn multi_line_comment_with_other_tokens() {
         let input = "select * /* this is a comment */ from table1";
         let lexer = Lexer::new(input);
-        let actual: Vec<Result<Token, LexError>> = lexer.collect();
+        let actual: Vec<Result<Token, LexError>> = collect(lexer);
 
         let expected = vec![
             Ok(Token::Select),
@@ -728,7 +769,7 @@ mod tests {
     fn identifiers() {
         let input = "table1 column1 PUBLIC.table2 my_col_3 PUBLIC_4.table_5 public.t6able.column_7";
         let lexer = Lexer::new(input);
-        let actual: Vec<Result<Token, LexError>> = lexer.collect();
+        let actual: Vec<Result<Token, LexError>> = collect(lexer);
 
         let expected = vec![
             Ok(Token::identifier("table1")),
@@ -758,7 +799,7 @@ mod tests {
     fn close_paren() {
         let input = "false) and";
         let lexer = Lexer::new(input);
-        let actual: Vec<Result<Token, LexError>> = lexer.collect();
+        let actual: Vec<Result<Token, LexError>> = collect(lexer);
 
         let expected = vec![
             Ok(Token::BooleanLiteral(false)),
@@ -774,7 +815,7 @@ mod tests {
         let input = "(column5 = -456.789 or column7 = false)";
         let lexer = Lexer::new(input);
 
-        let actual: Vec<Result<Token, LexError>> = lexer.collect();
+        let actual: Vec<Result<Token, LexError>> = collect(lexer);
 
         let expected = vec![
             Ok(Token::OpenParen),
@@ -796,7 +837,7 @@ mod tests {
         let input = "(1 + 222) * 3";
 
         let lexer = Lexer::new(input);
-        let actual: Vec<Result<Token, LexError>> = lexer.collect();
+        let actual: Vec<Result<Token, LexError>> = collect(lexer);
 
         let expected = vec![
             Ok(Token::OpenParen),
@@ -816,7 +857,7 @@ mod tests {
         let input = "(1 + 2) * 3";
 
         let lexer = Lexer::new(input);
-        let actual: Vec<Result<Token, LexError>> = lexer.collect();
+        let actual: Vec<Result<Token, LexError>> = collect(lexer);
 
         let expected = vec![
             Ok(Token::OpenParen),
@@ -871,7 +912,7 @@ mod tests {
         input: &str,
     ) {
         let lexer = Lexer::new(input);
-        let actual: Vec<Result<Token, LexError>> = lexer.collect();
+        let actual: Vec<Result<Token, LexError>> = collect(lexer);
 
         let expected = vec![
             Ok(Token::Select),
@@ -934,28 +975,28 @@ mod tests {
         let input = "1 + 2";
         let mut lexer = Lexer::new(input);
 
-        let actual = lexer.peek();
-        let expected = Some(Ok(Token::NumericLiteral("1".to_string())));
+        let actual = lexer.peek().unwrap().unwrap().token;
+        let expected = Token::NumericLiteral("1".to_string());
         assert_eq!(actual, expected);
 
-        let actual = lexer.peek();
-        let expected = Some(Ok(Token::NumericLiteral("1".to_string())));
+        let actual = lexer.peek().unwrap().unwrap().token;
+        let expected = Token::NumericLiteral("1".to_string());
         assert_eq!(actual, expected);
 
-        let actual = lexer.next();
-        let expected = Some(Ok(Token::NumericLiteral("1".to_string())));
+        let actual = lexer.next().unwrap().unwrap().token;
+        let expected = Token::NumericLiteral("1".to_string());
         assert_eq!(actual, expected);
 
-        let actual = lexer.peek();
-        let expected = Some(Ok(Token::Plus));
+        let actual = lexer.peek().unwrap().unwrap().token;
+        let expected = Token::Plus;
         assert_eq!(actual, expected);
 
-        let actual = lexer.next();
-        let expected = Some(Ok(Token::Plus));
+        let actual = lexer.next().unwrap().unwrap().token;
+        let expected = Token::Plus;
         assert_eq!(actual, expected);
 
-        let actual = lexer.next();
-        let expected = Some(Ok(Token::NumericLiteral("2".to_string())));
+        let actual = lexer.next().unwrap().unwrap().token;
+        let expected = Token::NumericLiteral("2".to_string());
         assert_eq!(actual, expected);
 
         let actual = lexer.next();
@@ -968,16 +1009,16 @@ mod tests {
         let input = "1 + 2";
         let mut lexer = Lexer::new(input);
 
-        let actual = lexer.next();
-        let expected = Some(Ok(Token::NumericLiteral("1".to_string())));
+        let actual = lexer.next().unwrap().unwrap().token;
+        let expected = Token::NumericLiteral("1".to_string());
         assert_eq!(actual, expected);
 
-        let actual = lexer.next();
-        let expected = Some(Ok(Token::Plus));
+        let actual = lexer.next().unwrap().unwrap().token;
+        let expected = Token::Plus;
         assert_eq!(actual, expected);
 
-        let actual = lexer.next();
-        let expected = Some(Ok(Token::NumericLiteral("2".to_string())));
+        let actual = lexer.next().unwrap().unwrap().token;
+        let expected = Token::NumericLiteral("2".to_string());
         assert_eq!(actual, expected);
 
         let actual = lexer.next();
@@ -989,7 +1030,7 @@ mod tests {
     fn create_table() {
         let input = "CREATE TABLE table1 (column1 INT, column2 INT)";
         let lexer = Lexer::new(input);
-        let actual: Vec<Result<Token, LexError>> = lexer.collect();
+        let actual: Vec<Result<Token, LexError>> = collect(lexer);
 
         let expected = vec![
             Ok(Token::Create),

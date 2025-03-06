@@ -1,0 +1,453 @@
+warning: virtual workspace defaulting to `resolver = "1"` despite one or more workspace members being on edition 2021 which implies `resolver = "2"`
+note: to keep the current resolver, specify `workspace.resolver = "1"` in the workspace root's manifest
+note: to use the edition 2021 resolver, specify `workspace.resolver = "2"` in the workspace root's manifest
+note: for more details see https://doc.rust-lang.org/cargo/reference/resolver.html#resolver-versions
+warning: unused variable: `s`
+   --> db/src/optimizer/optimizer.rs:107:39
+    |
+107 |                         Constant::Str(s) => panic!("String not supported yet"),
+    |                                       ^ help: if this is intentional, prefix it with an underscore: `_s`
+    |
+    = note: `#[warn(unused_variables)]` on by default
+
+warning: unused variable: `p_token`
+  --> db/src/parser/parser.rs:47:21
+   |
+47 |                 let p_token = self.lexer.next();
+   |                     ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_p_token`
+
+warning: type `MemoryStorageEngine` is more private than the item `StorageEngine::Memory::0`
+  --> db/src/optimizer/types.rs:34:12
+   |
+34 |     Memory(MemoryStorageEngine),
+   |            ^^^^^^^^^^^^^^^^^^^ field `StorageEngine::Memory::0` is reachable at visibility `pub`
+   |
+note: but type `MemoryStorageEngine` is only usable at visibility `pub(self)`
+  --> db/src/optimizer/types.rs:67:1
+   |
+67 | struct MemoryStorageEngine {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^
+   = note: `#[warn(private_interfaces)]` on by default
+
+warning: field `analyzer` is never read
+  --> db/src/embedded/mod.rs:16:5
+   |
+13 | pub struct Db {
+   |            -- field in this struct
+...
+16 |     analyzer: Analyzer,
+   |     ^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` on by default
+
+warning: `db` (lib) generated 4 warnings
+warning: unused variable: `input`
+   --> db/src/parser/parser.rs:469:13
+    |
+469 |         let input = "1 2";
+    |             ^^^^^ help: if this is intentional, prefix it with an underscore: `_input`
+
+warning: unused variable: `err`
+   --> db/src/parser/parser.rs:471:13
+    |
+471 |         let err = parse("(1 +");
+    |             ^^^ help: if this is intentional, prefix it with an underscore: `_err`
+
+warning: `db` (lib test) generated 6 warnings (4 duplicates)
+warning: use of deprecated method `ratatui::Frame::<'_>::size`: use .area() as it's the more correct name
+  --> tui/src/layout.rs:21:26
+   |
+21 |             .split(frame.size());
+   |                          ^^^^
+   |
+   = note: `#[warn(deprecated)]` on by default
+
+warning: use of deprecated method `ratatui::Frame::<'_>::size`: use .area() as it's the more correct name
+  --> tui/src/layout.rs:36:26
+   |
+36 |             .split(frame.size());
+   |                          ^^^^
+
+warning: `tui` (bin "tui" test) generated 2 warnings
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.11s
+warning: the following packages contain code that will be rejected by a future version of Rust: rstest v0.9.0
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+     Running unittests src/lib.rs (target/debug/deps/db-92a6621cd3d5df1d)
+
+running 74 tests
+test catalog::catalog::tests::builder ... ok
+test catalog::catalog::tests::column_id ... ok
+test catalog::catalog::tests::drop_table ... ok
+test catalog::catalog::tests::register_table ... ok
+test analyzer::analyzer::tests::select_from_where ... FAILED
+test catalog::catalog::tests::register_twice ... ok
+test catalog::catalog::tests::drop_twice ... ok
+test catalog::catalog::tests::table_id ... ok
+test analyzer::analyzer::tests::select_many_columns ... FAILED
+test analyzer::analyzer::tests::select_from_many_tables ... FAILED
+test analyzer::analyzer::tests::select_from_where_with_string ... FAILED
+test analyzer::analyzer::tests::create_table_test ... FAILED
+test analyzer::analyzer::tests::insert_into_table ... FAILED
+test analyzer::analyzer::tests::simple_test ... FAILED
+test optimizer::optimizer::tests::create_single_column ... FAILED
+test optimizer::optimizer::tests::create_table ... FAILED
+test optimizer::optimizer::tests::execute_pipeline ... FAILED
+test parser::lexer::lexer::tests::boolean_literals ... ok
+test optimizer::optimizer::tests::insert_into ... FAILED
+test optimizer::optimizer::tests::simple_test ... FAILED
+test parser::lexer::lexer::tests::close_paren ... ok
+test parser::lexer::lexer::tests::create_table ... ok
+test parser::lexer::lexer::tests::date_literals ... ok
+test parser::lexer::lexer::tests::datetime_literals ... ok
+test parser::lexer::lexer::tests::identifiers ... ok
+test parser::lexer::lexer::tests::lex_all::input_1 ... ok
+test parser::lexer::lexer::tests::lex_all::input_2 ... ok
+test parser::lexer::lexer::tests::lex_empty_input ... ok
+test parser::lexer::lexer::tests::lex_all::input_3 ... ok
+test parser::lexer::lexer::tests::lex_error ... ok
+test parser::lexer::lexer::tests::lex_longer_tokens ... ok
+test parser::lexer::lexer::tests::lex_keywords ... ok
+test parser::lexer::lexer::tests::lex_single_chars ... ok
+test parser::lexer::lexer::tests::lex_whitespace ... ok
+test parser::lexer::lexer::tests::multi_line_comment ... ok
+test parser::lexer::lexer::tests::multi_line_comment_with_other_tokens ... ok
+test parser::lexer::lexer::tests::next_only ... ok
+test parser::lexer::lexer::tests::numeric_literals ... ok
+test parser::lexer::lexer::tests::open_paren ... ok
+test parser::lexer::lexer::tests::paren_2 ... ok
+test parser::lexer::lexer::tests::paren_22 ... ok
+test parser::lexer::lexer::tests::peek ... ok
+test parser::lexer::lexer::tests::really_multi_line_comment ... ok
+test parser::lexer::lexer::tests::simple_expr ... ok
+test parser::lexer::lexer::tests::single_line_comment ... ok
+test parser::lexer::lexer::tests::single_line_comment_with_other_tokens ... ok
+test parser::lexer::lexer::tests::string_literal_with_escape ... ok
+test parser::lexer::lexer::tests::string_literals ... ok
+test parser::lexer::lexer::tests::time_literals ... ok
+test parser::parser::tests::create_table_three_columns ... FAILED
+test parser::parser::tests::create_table_two_columns ... FAILED
+test parser::parser::tests::create_table_with_single_column ... FAILED
+test parser::parser::tests::drop_table ... FAILED
+test parser::parser::tests::expression_parser ... FAILED
+test parser::parser::tests::expression_parser_with_precedence ... FAILED
+test parser::parser::tests::insert_into ... FAILED
+test parser::parser::tests::insert_into_single_column ... FAILED
+test parser::parser::tests::mininmal_expression_parser ... FAILED
+test parser::parser::tests::mininmal_expression_parser_str ... FAILED
+test parser::parser::tests::postfix_function_call ... ignored
+test parser::parser::tests::parse_more ... FAILED
+test parser::parser::tests::parse_reverse ... FAILED
+test parser::parser::tests::prefix_operator_not ... FAILED
+test parser::parser::tests::select_query_many_columns ... FAILED
+test parser::parser::tests::select_query_many_commas ... FAILED
+test parser::parser::tests::select_query_with_from ... FAILED
+test parser::parser::tests::select_query_with_where ... FAILED
+test parser::parser::tests::select_query_with_where_and_and ... FAILED
+test parser::parser::tests::select_query_without_from ... FAILED
+test parser::parser::tests::simple_where_expr ... FAILED
+test parser::parser::tests::unexpected_token ... FAILED
+test parser::parser::tests::where_expr ... FAILED
+test parser::parser::tests::where_expr_with_parentheses ... FAILED
+test parser::parser::tests::where_expr_with_parentheses_2 ... FAILED
+
+failures:
+
+---- analyzer::analyzer::tests::select_from_where stdout ----
+thread 'analyzer::analyzer::tests::select_from_where' panicked at db/src/parser/parser.rs:65:52:
+called `Option::unwrap()` on a `None` value
+
+---- analyzer::analyzer::tests::select_many_columns stdout ----
+thread 'analyzer::analyzer::tests::select_many_columns' panicked at db/src/parser/parser.rs:65:52:
+called `Option::unwrap()` on a `None` value
+
+---- analyzer::analyzer::tests::select_from_many_tables stdout ----
+thread 'analyzer::analyzer::tests::select_from_many_tables' panicked at db/src/parser/parser.rs:65:52:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- analyzer::analyzer::tests::select_from_where_with_string stdout ----
+thread 'analyzer::analyzer::tests::select_from_where_with_string' panicked at db/src/parser/parser.rs:65:52:
+called `Option::unwrap()` on a `None` value
+
+---- analyzer::analyzer::tests::create_table_test stdout ----
+thread 'analyzer::analyzer::tests::create_table_test' panicked at db/src/parser/parser.rs:189:30:
+Unexpected token: Identifier { first_name: "col1", second_name: None, third_name: None }
+
+---- analyzer::analyzer::tests::insert_into_table stdout ----
+thread 'analyzer::analyzer::tests::insert_into_table' panicked at db/src/parser/parser.rs:65:52:
+called `Option::unwrap()` on a `None` value
+
+---- analyzer::analyzer::tests::simple_test stdout ----
+thread 'analyzer::analyzer::tests::simple_test' panicked at db/src/parser/parser.rs:65:52:
+called `Option::unwrap()` on a `None` value
+
+---- optimizer::optimizer::tests::create_single_column stdout ----
+thread 'optimizer::optimizer::tests::create_single_column' panicked at db/src/parser/parser.rs:189:30:
+Unexpected token: Identifier { first_name: "col1", second_name: None, third_name: None }
+
+---- optimizer::optimizer::tests::create_table stdout ----
+thread 'optimizer::optimizer::tests::create_table' panicked at db/src/parser/parser.rs:189:30:
+Unexpected token: Identifier { first_name: "col1", second_name: None, third_name: None }
+
+---- optimizer::optimizer::tests::execute_pipeline stdout ----
+thread 'optimizer::optimizer::tests::execute_pipeline' panicked at db/src/parser/parser.rs:65:52:
+called `Option::unwrap()` on a `None` value
+
+---- optimizer::optimizer::tests::insert_into stdout ----
+thread 'optimizer::optimizer::tests::insert_into' panicked at db/src/parser/parser.rs:65:52:
+called `Option::unwrap()` on a `None` value
+
+---- optimizer::optimizer::tests::simple_test stdout ----
+thread 'optimizer::optimizer::tests::simple_test' panicked at db/src/parser/parser.rs:65:52:
+called `Option::unwrap()` on a `None` value
+
+---- parser::parser::tests::create_table_three_columns stdout ----
+thread 'parser::parser::tests::create_table_three_columns' panicked at db/src/parser/parser.rs:189:30:
+Unexpected token: Identifier { first_name: "col1", second_name: None, third_name: None }
+
+---- parser::parser::tests::create_table_two_columns stdout ----
+thread 'parser::parser::tests::create_table_two_columns' panicked at db/src/parser/parser.rs:189:30:
+Unexpected token: Identifier { first_name: "col1", second_name: None, third_name: None }
+
+---- parser::parser::tests::create_table_with_single_column stdout ----
+thread 'parser::parser::tests::create_table_with_single_column' panicked at db/src/parser/parser.rs:189:30:
+Unexpected token: Identifier { first_name: "col1", second_name: None, third_name: None }
+
+---- parser::parser::tests::drop_table stdout ----
+thread 'parser::parser::tests::drop_table' panicked at db/src/parser/parser.rs:65:52:
+called `Option::unwrap()` on a `None` value
+
+---- parser::parser::tests::expression_parser stdout ----
+thread 'parser::parser::tests::expression_parser' panicked at db/src/parser/parser.rs:65:52:
+called `Option::unwrap()` on a `None` value
+
+---- parser::parser::tests::expression_parser_with_precedence stdout ----
+thread 'parser::parser::tests::expression_parser_with_precedence' panicked at db/src/parser/parser.rs:65:52:
+called `Option::unwrap()` on a `None` value
+
+---- parser::parser::tests::insert_into stdout ----
+thread 'parser::parser::tests::insert_into' panicked at db/src/parser/parser.rs:65:52:
+called `Option::unwrap()` on a `None` value
+
+---- parser::parser::tests::insert_into_single_column stdout ----
+thread 'parser::parser::tests::insert_into_single_column' panicked at db/src/parser/parser.rs:65:52:
+called `Option::unwrap()` on a `None` value
+
+---- parser::parser::tests::mininmal_expression_parser stdout ----
+thread 'parser::parser::tests::mininmal_expression_parser' panicked at db/src/parser/parser.rs:65:52:
+called `Option::unwrap()` on a `None` value
+
+---- parser::parser::tests::mininmal_expression_parser_str stdout ----
+thread 'parser::parser::tests::mininmal_expression_parser_str' panicked at db/src/parser/parser.rs:65:52:
+called `Option::unwrap()` on a `None` value
+
+---- parser::parser::tests::parse_more stdout ----
+thread 'parser::parser::tests::parse_more' panicked at db/src/parser/parser.rs:65:52:
+called `Option::unwrap()` on a `None` value
+
+---- parser::parser::tests::parse_reverse stdout ----
+thread 'parser::parser::tests::parse_reverse' panicked at db/src/parser/parser.rs:65:52:
+called `Option::unwrap()` on a `None` value
+
+---- parser::parser::tests::prefix_operator_not stdout ----
+thread 'parser::parser::tests::prefix_operator_not' panicked at db/src/parser/parser.rs:65:52:
+called `Option::unwrap()` on a `None` value
+
+---- parser::parser::tests::select_query_many_columns stdout ----
+thread 'parser::parser::tests::select_query_many_columns' panicked at db/src/parser/parser.rs:65:52:
+called `Option::unwrap()` on a `None` value
+
+---- parser::parser::tests::select_query_many_commas stdout ----
+thread 'parser::parser::tests::select_query_many_commas' panicked at db/src/parser/parser.rs:65:52:
+called `Option::unwrap()` on a `None` value
+
+---- parser::parser::tests::select_query_with_from stdout ----
+thread 'parser::parser::tests::select_query_with_from' panicked at db/src/parser/parser.rs:65:52:
+called `Option::unwrap()` on a `None` value
+
+---- parser::parser::tests::select_query_with_where stdout ----
+thread 'parser::parser::tests::select_query_with_where' panicked at db/src/parser/parser.rs:65:52:
+called `Option::unwrap()` on a `None` value
+
+---- parser::parser::tests::select_query_with_where_and_and stdout ----
+thread 'parser::parser::tests::select_query_with_where_and_and' panicked at db/src/parser/parser.rs:252:18:
+Unexpected token: Some(And)
+
+---- parser::parser::tests::select_query_without_from stdout ----
+thread 'parser::parser::tests::select_query_without_from' panicked at db/src/parser/parser.rs:65:52:
+called `Option::unwrap()` on a `None` value
+
+---- parser::parser::tests::simple_where_expr stdout ----
+thread 'parser::parser::tests::simple_where_expr' panicked at db/src/parser/parser.rs:65:52:
+called `Option::unwrap()` on a `None` value
+
+---- parser::parser::tests::unexpected_token stdout ----
+thread 'parser::parser::tests::unexpected_token' panicked at db/src/parser/parser.rs:25:50:
+called `Option::unwrap()` on a `None` value
+
+---- parser::parser::tests::where_expr stdout ----
+thread 'parser::parser::tests::where_expr' panicked at db/src/parser/parser.rs:65:52:
+called `Option::unwrap()` on a `None` value
+
+---- parser::parser::tests::where_expr_with_parentheses stdout ----
+thread 'parser::parser::tests::where_expr_with_parentheses' panicked at db/src/parser/parser.rs:570:9:
+assertion failed: `(left == right)`
+
+[1mDiff[0m [31m< left[0m / [32mright >[0m :
+[31m<Error([0m
+[31m<    "Unexpected token: OpenParen",[0m
+[32m>Infix([0m
+[32m>    Multiply,[0m
+[32m>    [[0m
+[32m>        Infix([0m
+[32m>            Plus,[0m
+[32m>            [[0m
+[32m>                Leaf([0m
+[32m>                    Numeric([0m
+[32m>                        1,[0m
+[32m>                    ),[0m
+[32m>                ),[0m
+[32m>                Leaf([0m
+[32m>                    Numeric([0m
+[32m>                        2,[0m
+[32m>                    ),[0m
+[32m>                ),[0m
+[32m>            ],[0m
+[32m>        ),[0m
+[32m>        Leaf([0m
+[32m>            Numeric([0m
+[32m>                3,[0m
+[32m>            ),[0m
+[32m>        ),[0m
+[32m>    ],[0m
+ )
+
+
+
+---- parser::parser::tests::where_expr_with_parentheses_2 stdout ----
+thread 'parser::parser::tests::where_expr_with_parentheses_2' panicked at db/src/parser/parser.rs:594:9:
+assertion failed: `(left == right)`
+
+[1mDiff[0m [31m< left[0m / [32mright >[0m :
+[31m<Error([0m
+[31m<    "Unexpected token: OpenParen",[0m
+[32m>Infix([0m
+[32m>    Or,[0m
+[32m>    [[0m
+[32m>        Infix([0m
+[32m>            Multiply,[0m
+[32m>            [[0m
+[32m>                Infix([0m
+[32m>                    And,[0m
+[32m>                    [[0m
+[32m>                        Infix([0m
+[32m>                            Equals,[0m
+[32m>                            [[0m
+[32m>                                Leaf([0m
+[32m>                                    Numeric([0m
+[32m>                                        1,[0m
+[32m>                                    ),[0m
+[32m>                                ),[0m
+[32m>                                Leaf([0m
+[32m>                                    Numeric([0m
+[32m>                                        1,[0m
+[32m>                                    ),[0m
+[32m>                                ),[0m
+[32m>                            ],[0m
+[32m>                        ),[0m
+[32m>                        Infix([0m
+[32m>                            GreaterThanOrEquals,[0m
+[32m>                            [[0m
+[32m>                                Leaf([0m
+[32m>                                    Numeric([0m
+[32m>                                        2,[0m
+[32m>                                    ),[0m
+[32m>                                ),[0m
+[32m>                                Leaf([0m
+[32m>                                    Numeric([0m
+[32m>                                        3,[0m
+[32m>                                    ),[0m
+[32m>                                ),[0m
+[32m>                            ],[0m
+[32m>                        ),[0m
+[32m>                    ],[0m
+[32m>                ),[0m
+[32m>                Leaf([0m
+[32m>                    Numeric([0m
+[32m>                        1,[0m
+[32m>                    ),[0m
+[32m>                ),[0m
+[32m>            ],[0m
+[32m>        ),[0m
+[32m>        Infix([0m
+[32m>            LessThan,[0m
+[32m>            [[0m
+[32m>                Leaf([0m
+[32m>                    Numeric([0m
+[32m>                        4,[0m
+[32m>                    ),[0m
+[32m>                ),[0m
+[32m>                Infix([0m
+[32m>                    Plus,[0m
+[32m>                    [[0m
+[32m>                        Leaf([0m
+[32m>                            Numeric([0m
+[32m>                                5,[0m
+[32m>                            ),[0m
+[32m>                        ),[0m
+[32m>                        Leaf([0m
+[32m>                            Numeric([0m
+[32m>                                6,[0m
+[32m>                            ),[0m
+[32m>                        ),[0m
+[32m>                    ],[0m
+[32m>                ),[0m
+[32m>            ],[0m
+[32m>        ),[0m
+[32m>    ],[0m
+ )
+
+
+
+
+failures:
+    analyzer::analyzer::tests::create_table_test
+    analyzer::analyzer::tests::insert_into_table
+    analyzer::analyzer::tests::select_from_many_tables
+    analyzer::analyzer::tests::select_from_where
+    analyzer::analyzer::tests::select_from_where_with_string
+    analyzer::analyzer::tests::select_many_columns
+    analyzer::analyzer::tests::simple_test
+    optimizer::optimizer::tests::create_single_column
+    optimizer::optimizer::tests::create_table
+    optimizer::optimizer::tests::execute_pipeline
+    optimizer::optimizer::tests::insert_into
+    optimizer::optimizer::tests::simple_test
+    parser::parser::tests::create_table_three_columns
+    parser::parser::tests::create_table_two_columns
+    parser::parser::tests::create_table_with_single_column
+    parser::parser::tests::drop_table
+    parser::parser::tests::expression_parser
+    parser::parser::tests::expression_parser_with_precedence
+    parser::parser::tests::insert_into
+    parser::parser::tests::insert_into_single_column
+    parser::parser::tests::mininmal_expression_parser
+    parser::parser::tests::mininmal_expression_parser_str
+    parser::parser::tests::parse_more
+    parser::parser::tests::parse_reverse
+    parser::parser::tests::prefix_operator_not
+    parser::parser::tests::select_query_many_columns
+    parser::parser::tests::select_query_many_commas
+    parser::parser::tests::select_query_with_from
+    parser::parser::tests::select_query_with_where
+    parser::parser::tests::select_query_with_where_and_and
+    parser::parser::tests::select_query_without_from
+    parser::parser::tests::simple_where_expr
+    parser::parser::tests::unexpected_token
+    parser::parser::tests::where_expr
+    parser::parser::tests::where_expr_with_parentheses
+    parser::parser::tests::where_expr_with_parentheses_2
+
+test result: FAILED. 37 passed; 36 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p db --lib`

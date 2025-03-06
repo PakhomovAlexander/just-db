@@ -7,6 +7,21 @@ pub struct PositionedToken<'a> {
     pub end: usize,
 }
 
+impl<'a> PositionedToken<'a> {
+    pub fn from_str(
+        word: &'a str,
+        started_position: usize,
+    ) -> Option<Result<PositionedToken<'a>, LexError>> {
+        let token = Token::from_str(word).unwrap().unwrap(); // FIXME: unwrap
+        let end_position = started_position + word.len();
+        Some(Ok(PositionedToken {
+            token,
+            start: started_position,
+            end: end_position,
+        }))
+    }
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum Token<'a> {
     Select,

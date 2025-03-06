@@ -2,6 +2,8 @@ use crate::parser::lexer::Lexer;
 use crate::parser::lexer::Token;
 use crate::types::ColType;
 
+use super::lexer::LexError;
+use super::lexer::PositionedToken;
 use super::tree::{Literal, Node, Op};
 
 pub struct Parser<'a> {
@@ -18,54 +20,71 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_bp(&mut self, min_bp: u8) -> Node {
-        let mut lhs = match self.lexer.next() {
-            Some(Ok(Token::NumericLiteral(i))) => Node::Leaf(Literal::numeric(i)),
-            Some(Ok(Token::StringLiteral(s))) => Node::Leaf(Literal::string(s)),
-            Some(Ok(Token::Identifier {
+        let pos_token = self.lexer.next();
+
+        let token = self.try_extract(&pos_token);
+        if token.is_none() {
+            return Node::Error("Unexpected end of input".to_string());
+        }
+
+        let mut lhs = match token.unwrap() {
+            Token::NumericLiteral(i) => Node::Leaf(Literal::numeric(i)),
+            Token::StringLiteral(s) => Node::Leaf(Literal::string(s)),
+            Token::Identifier {
                 first_name,
                 second_name: None,
                 third_name: None,
-            })) => Node::Leaf(Literal::Identifier {
+            } => Node::Leaf(Literal::Identifier {
                 first_name: first_name.to_string(),
                 second_name: None,
                 third_name: None,
             }),
-            Some(Ok(Token::Not)) => {
+            Token::Not => {
                 let ((), r_bp) = Self::prefix_operator_bp(&Op::Not);
                 let rhs = self.parse_bp(r_bp);
                 Node::Prefix(Op::Not, vec![rhs])
             }
-            Some(Ok(Token::OpenParen)) => {
+            Token::OpenParen => {
                 let lhs = self.parse_bp(0);
 
-                match self.lexer.next() {
-                    Some(Ok(Token::CloseParen)) => lhs,
-                    s => panic!("Unexpected token: {:?}", s.start_pos, s.end_pos),
+                let p_token = self.lexer.next();
+                let token = self.try_extract(&p_token).unwrap();
+
+                match token {
+                    Token::CloseParen => lhs,
+                    s => return Node::Error(format!("Unexpected token: {:?}", s)), // TODO:
                 }
             }
-            Some(Ok(Token::Select)) => self.parse_select(min_bp),
-            Some(Ok(Token::Create)) => self.parse_create(min_bp),
-            Some(Ok(Token::Drop)) => self.parse_drop(min_bp),
-            Some(Ok(Token::Insert)) => self.parse_insert(min_bp),
-            s => panic!("Unexpected token: {:?}", s),
+            Token::Select => self.parse_select(min_bp),
+            Token::Create => self.parse_create(min_bp),
+            Token::Drop => self.parse_drop(min_bp),
+            Token::Insert => self.parse_insert(min_bp),
+            s => Node::Error(format!("Unexpected token: {:?}", s)),
         };
 
         loop {
-            let op = match self.lexer.peek() {
-                Some(Ok(Token::And)) => Op::And,
-                Some(Ok(Token::Or)) => Op::Or,
-                Some(Ok(Token::Plus)) => Op::Plus,
-                Some(Ok(Token::Minus)) => Op::Minus,
-                Some(Ok(Token::Asterisk)) => Op::Multiply,
-                Some(Ok(Token::Slash)) => Op::Divide,
-                Some(Ok(Token::Equals)) => Op::Equals,
-                Some(Ok(Token::NotEquals)) => Op::NotEquals,
-                Some(Ok(Token::LessThan)) => Op::LessThan,
-                Some(Ok(Token::GreaterThan)) => Op::GreaterThan,
-                Some(Ok(Token::LessThanOrEquals)) => Op::LessThanOrEquals,
-                Some(Ok(Token::GreaterThanOrEquals)) => Op::GreaterThanOrEquals,
-                Some(Ok(Token::CloseParen)) => Op::CloseParen,
-                Some(Ok(Token::Comma)) => Op::Comma,
+            let p_token = self.lexer.peek();
+            let token = self.try_extract(&p_token);
+            if token.is_none() {
+                break;
+            }
+            let token = token.unwrap();
+
+            let op = match token {
+                Token::And => Op::And,
+                Token::Or => Op::Or,
+                Token::Plus => Op::Plus,
+                Token::Minus => Op::Minus,
+                Token::Asterisk => Op::Multiply,
+                Token::Slash => Op::Divide,
+                Token::Equals => Op::Equals,
+                Token::NotEquals => Op::NotEquals,
+                Token::LessThan => Op::LessThan,
+                Token::GreaterThan => Op::GreaterThan,
+                Token::LessThanOrEquals => Op::LessThanOrEquals,
+                Token::GreaterThanOrEquals => Op::GreaterThanOrEquals,
+                Token::CloseParen => Op::CloseParen,
+                Token::Comma => Op::Comma,
                 _ => break,
             };
 
@@ -95,19 +114,24 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_drop(&mut self, min_bp: u8) -> Node {
-        match self.lexer.next() {
-            Some(Ok(Token::Table)) => self.parse_drop_table(min_bp),
+        let p_token = self.lexer.next();
+        let token = self.try_extract(&p_token).unwrap();
+        match token {
+            Token::Table => self.parse_drop_table(min_bp),
             s => panic!("Unexpected token: {:?}", s),
         }
     }
 
     fn parse_drop_table(&mut self, _min_bp: u8) -> Node {
-        let lhs = match self.lexer.next() {
-            Some(Ok(Token::Identifier {
+        let p_token = self.lexer.next();
+        let token = self.try_extract(&p_token).unwrap();
+
+        let lhs = match token {
+            Token::Identifier {
                 first_name,
                 second_name: None,
                 third_name: None,
-            })) => Literal::identifier(first_name),
+            } => Literal::identifier(first_name),
             s => panic!("Unexpected token: {:?}", s),
         };
 
@@ -115,39 +139,54 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_create(&mut self, min_bp: u8) -> Node {
-        match self.lexer.next() {
-            Some(Ok(Token::Table)) => self.parse_create_table(min_bp),
+        let p_token = self.lexer.next();
+        let token = self.try_extract(&p_token).unwrap();
+
+        match token {
+            Token::Table => self.parse_create_table(min_bp),
             s => panic!("Unexpected token: {:?}", s),
         }
     }
 
     fn parse_create_table(&mut self, _min_bp: u8) -> Node {
-        let lhs = match self.lexer.next() {
-            Some(Ok(Token::Identifier {
+        let p_token = self.lexer.next();
+        let token = self.try_extract(&p_token).unwrap();
+
+        let lhs = match token {
+            Token::Identifier {
                 first_name,
                 second_name: None,
                 third_name: None,
-            })) => Literal::identifier(first_name),
+            } => Literal::identifier(first_name),
             s => panic!("Unexpected token: {:?}", s),
         };
 
-        match self.lexer.next() {
-            Some(Ok(Token::OpenParen)) => {
+        let p_token = self.lexer.next();
+        let token = self.try_extract(&p_token).unwrap();
+
+        match token {
+            Token::OpenParen => {
                 let mut columns = vec![];
 
                 loop {
-                    let column_name = match self.lexer.next() {
-                        Some(Ok(Token::Identifier {
+                    let p_token = self.lexer.next();
+                    let token = self.try_extract(&p_token).unwrap();
+
+                    let column_name = match token {
+                        Token::Identifier {
                             first_name,
                             second_name: None,
                             third_name: None,
-                        })) => Literal::identifier(first_name),
-                        Some(Ok(Token::CloseParen)) => break,
+                        } => Literal::identifier(first_name),
+                        Token::CloseParen => break,
                         s => panic!("Unexpected token: {:?}", s),
                     };
 
-                    match self.lexer.next() {
-                        Some(Ok(Token::Int)) => {
+                    let p_token = self.lexer.next();
+                    let token = self.try_extract(&p_token).unwrap();
+
+                    match token {
+                        Token::Int => {
                             columns.push(Node::Infix(
                                 Op::ColumnDefinition,
                                 vec![Node::Leaf(column_name), Node::LeafType(ColType::Int)],
@@ -156,9 +195,12 @@ impl<'a> Parser<'a> {
                         s => panic!("Unexpected token: {:?}", s),
                     }
 
-                    match self.lexer.next() {
-                        Some(Ok(Token::Comma)) => continue,
-                        Some(Ok(Token::CloseParen)) => break,
+                    let p_token = self.lexer.next();
+                    let token = self.try_extract(&p_token).unwrap();
+
+                    match token {
+                        Token::Comma => continue,
+                        Token::CloseParen => break,
                         s => panic!("Unexpected token: {:?}", s),
                     }
                 }
@@ -182,8 +224,11 @@ impl<'a> Parser<'a> {
     fn parse_select(&mut self, min_bp: u8) -> Node {
         let rhs = self.parse_bp(0);
 
-        match self.lexer.next() {
-            Some(Ok(Token::From)) => Node::Prefix(Op::Select, vec![rhs, self.parse_from(min_bp)]),
+        let p_token = self.lexer.next();
+        let token = self.try_extract(&p_token);
+
+        match token {
+            Some(Token::From) => Node::Prefix(Op::Select, vec![rhs, self.parse_from(min_bp)]),
             None => Node::Prefix(Op::Select, vec![rhs]),
             s => panic!("Unexpected token: {:?}", s),
         }
@@ -192,8 +237,11 @@ impl<'a> Parser<'a> {
     fn parse_from(&mut self, min_bp: u8) -> Node {
         let rhs = self.parse_bp(0);
 
-        match self.lexer.next() {
-            Some(Ok(Token::Where)) => Node::Prefix(Op::From, vec![rhs, self.parse_where(min_bp)]),
+        let p_token = self.lexer.next();
+        let token = self.try_extract(&p_token);
+
+        match token {
+            Some(Token::Where) => Node::Prefix(Op::From, vec![rhs, self.parse_where(min_bp)]),
             None => Node::Prefix(Op::From, vec![rhs]),
             s => panic!("Unexpected token: {:?}", s),
         }
@@ -202,50 +250,66 @@ impl<'a> Parser<'a> {
     fn parse_where(&mut self, _min_bp: u8) -> Node {
         let rhs = self.parse_bp(0);
 
-        match self.lexer.next() {
+        let p_token = self.lexer.next();
+        let token = self.try_extract(&p_token);
+
+        match token {
             None => Node::Prefix(Op::Where, vec![rhs]),
             s => panic!("Unexpected token: {:?}", s),
         }
     }
 
     fn parse_insert(&mut self, min_bp: u8) -> Node {
-        match self.lexer.next() {
-            Some(Ok(Token::Into)) => self.parse_insert_into(min_bp),
+        let p_token = self.lexer.next();
+        let token = self.try_extract(&p_token).unwrap();
+
+        match token {
+            Token::Into => self.parse_insert_into(min_bp),
             s => panic!("Unexpected token: {:?}", s),
         }
     }
 
     fn parse_insert_into(&mut self, _min_bp: u8) -> Node {
-        let lhs = match self.lexer.next() {
-            Some(Ok(Token::Identifier {
+        let p_token = self.lexer.next();
+        let token = self.try_extract(&p_token).unwrap();
+
+        let lhs = match token {
+            Token::Identifier {
                 first_name,
                 second_name: None,
                 third_name: None,
-            })) => Literal::identifier(first_name),
+            } => Literal::identifier(first_name),
             s => panic!("Unexpected token: {:?}", s),
         };
 
-        match self.lexer.next() {
-            Some(Ok(Token::OpenParen)) => {
+        let p_token = self.lexer.next();
+        let token = self.try_extract(&p_token).unwrap();
+        match token {
+            Token::OpenParen => {
                 let mut columns = vec![];
 
                 loop {
-                    let column_name = match self.lexer.next() {
-                        Some(Ok(Token::Identifier {
+                    let p_token = self.lexer.next();
+                    let token = self.try_extract(&p_token).unwrap();
+
+                    let column_name = match token {
+                        Token::Identifier {
                             first_name,
                             second_name: None,
                             third_name: None,
-                        })) => Literal::identifier(first_name),
-                        Some(Ok(Token::Comma)) => continue,
-                        Some(Ok(Token::CloseParen)) => break,
+                        } => Literal::identifier(first_name),
+                        Token::Comma => continue,
+                        Token::CloseParen => break,
                         s => panic!("Unexpected token: {:?}", s),
                     };
 
                     columns.push(Node::Leaf(column_name));
                 }
 
-                let values = match self.lexer.next() {
-                    Some(Ok(Token::Values)) => self.parse_values(),
+                let p_token = self.lexer.next();
+                let token = self.try_extract(&p_token).unwrap();
+                let values = match token {
+                    Token::Values => self.parse_values(),
                     s => panic!("Unexpected token: {:?}", s),
                 };
 
@@ -263,15 +327,20 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_values(&mut self) -> Vec<Node> {
-        match self.lexer.next() {
-            Some(Ok(Token::OpenParen)) => {
+        let p_token = self.lexer.next();
+        let token = self.try_extract(&p_token).unwrap();
+
+        match token {
+            Token::OpenParen => {
                 let mut values = vec![];
 
                 loop {
-                    let value = match self.lexer.next() {
-                        Some(Ok(Token::NumericLiteral(i))) => Node::Leaf(Literal::numeric(i)),
-                        Some(Ok(Token::CloseParen)) => break,
-                        Some(Ok(Token::Comma)) => continue,
+                    let p_token = self.lexer.next();
+                    let token = self.try_extract(&p_token).unwrap();
+                    let value = match token {
+                        Token::NumericLiteral(i) => Node::Leaf(Literal::numeric(i)),
+                        Token::CloseParen => break,
+                        Token::Comma => continue,
                         s => panic!("Unexpected token: {:?}", s),
                     };
 
@@ -317,6 +386,19 @@ impl<'a> Parser<'a> {
             Op::CloseParen => None,
 
             _ => panic!("Unexpected infix operator: {:?}", op),
+        }
+    }
+
+    fn try_extract(
+        &self,
+        p_token: &Option<Result<PositionedToken<'a>, LexError>>,
+    ) -> Option<Token<'a>> {
+        match p_token {
+            Some(Ok(t)) => Some(t.token.clone()), // FIXME: clone
+            _ => {
+                dbg!(p_token);
+                None
+            }
         }
     }
 }
@@ -392,6 +474,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore] // TODO: implement error handling
     fn unexpected_token() {
         let input = "1 2";
 
