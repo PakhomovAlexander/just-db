@@ -1,7 +1,10 @@
 use core::panic;
 use std::vec;
 
-use crate::parser::tree::{Literal, Node, Op};
+use crate::parser::{
+    errors::ParseError,
+    tree::{Literal, Node, Op},
+};
 
 use super::tree::*;
 
@@ -17,15 +20,17 @@ impl Analyzer {
     }
 
     pub fn analyze(mut self, node: Node) -> LogicalPlan {
-        let logical_nodes = self.walk(node);
-        LogicalPlan {
-            root: logical_nodes[0].clone(),
-            seen_tables: self.seen_tables,
+        match self.walk(node) {
+            Ok(nodes) => LogicalPlan {
+                root: nodes[0].clone(),
+                seen_tables: self.seen_tables,
+            },
+            Err(e) => panic!("error: {:?}", e), //FIXME: no panic
         }
     }
 
     #[allow(clippy::only_used_in_recursion)]
-    fn walk(&mut self, node: Node) -> Vec<LogicalNode> {
+    fn walk(&mut self, node: Node) -> Result<Vec<LogicalNode>, ParseError> {
         match node.op() {
             Some(Op::Select) => {
                 let children = node.children();
@@ -33,19 +38,19 @@ impl Analyzer {
                 let columns_node = children[0].clone();
 
                 let mut walker = ColumnWalker::new();
-                let columns = walker.walk(&columns_node);
+                let columns = walker.walk(&columns_node?)?;
 
-                vec![LogicalNode {
+                Ok(vec![LogicalNode {
                     op: Operator::Project { columns },
-                    children: self.walk(from_node),
-                }]
+                    children: self.walk(from_node?)?,
+                }])
             }
             Some(Op::From) => {
                 let children = node.children();
 
                 let tables_node = children[0].clone();
                 let mut walker = TableWalker::new();
-                let tables = walker.walk(&tables_node);
+                let tables = walker.walk(&tables_node?)?;
 
                 self.seen_tables
                     .append(&mut tables.iter().map(|t| t.table_name.clone()).collect());
@@ -61,27 +66,27 @@ impl Analyzer {
                     nodes.push(node);
                 }
 
-                let where_node = children[children.len() - 1].clone();
+                let where_node = children[children.len() - 1].clone()?;
                 if where_node.op() == Some(Op::Where) {
-                    let where_l_node = self.walk(where_node);
+                    let where_l_node = self.walk(where_node)?;
                     let n = LogicalNode {
                         op: Operator::Filter {
                             node: Box::new(where_l_node[0].clone()),
                         },
                         children: nodes,
                     };
-                    vec![n]
+                    Ok(vec![n])
                 } else {
-                    nodes
+                    Ok(nodes)
                 }
             }
             Some(Op::Where) => {
                 let children = node.children();
 
-                let node = children[0].clone();
+                let node = children[0].clone()?;
                 let mut walker = WhereWalker::new();
 
-                vec![walker.walk(&node)]
+                Ok(vec![walker.walk(&node)?])
             }
             Some(Op::CreateTable) => {
                 let mut walker = CreateTableWalker::new();
@@ -89,7 +94,7 @@ impl Analyzer {
 
                 self.seen_tables.append(&mut walker.seen_tables);
 
-                vec![l_node]
+                Ok(vec![l_node?])
             }
             Some(Op::InsertInto) => {
                 let mut walker = InsertIntoWalker::new();
@@ -97,7 +102,7 @@ impl Analyzer {
 
                 self.seen_tables.append(&mut walker.seen_tables);
 
-                vec![l_node]
+                Ok(vec![l_node?])
             }
             None => {
                 panic!("unexpected node: {:?}", node);
@@ -118,14 +123,14 @@ impl ColumnWalker {
         ColumnWalker { columns: vec![] }
     }
 
-    fn walk(&mut self, node: &Node) -> Vec<Column> {
+    fn walk(&mut self, node: &Node) -> Result<Vec<Column>, ParseError> {
         match node.op() {
             Some(Op::Comma) => {
                 let children = node.children();
-                // TODO
-                self.walk(&children[0]);
-                self.walk(&children[1]);
-                self.columns.clone()
+                // TODO: what is going on here?
+                self.walk(&children[0].clone()?);
+                self.walk(&children[1].clone()?);
+                Ok(self.columns.clone())
             }
             None => {
                 let column_name = match node.literal().unwrap() {
@@ -138,7 +143,7 @@ impl ColumnWalker {
                 };
                 self.columns.push(Column { column_name });
 
-                self.columns.clone()
+                Ok(self.columns.clone())
             }
             n => {
                 panic!("unexpected node: {:?}", n);
@@ -156,14 +161,14 @@ impl TableWalker {
         TableWalker { tables: vec![] }
     }
 
-    fn walk(&mut self, node: &Node) -> Vec<Table> {
+    fn walk(&mut self, node: &Node) -> Result<Vec<Table>, ParseError> {
         match node.op() {
             Some(Op::Comma) => {
                 let children = node.children();
-                self.walk(&children[0]);
-                self.walk(&children[1]);
+                self.walk(&children[0].clone()?);
+                self.walk(&children[1].clone()?);
 
-                self.tables.clone()
+                Ok(self.tables.clone())
             }
             None => {
                 let table_name = match node.literal().unwrap() {
@@ -176,7 +181,7 @@ impl TableWalker {
                 };
                 self.tables.push(Table { table_name });
 
-                self.tables.clone()
+                Ok(self.tables.clone())
             }
             n => {
                 panic!("unexpected node: {:?}", n);
@@ -192,20 +197,20 @@ impl WhereWalker {
         WhereWalker {}
     }
 
-    fn walk(&mut self, node: &Node) -> LogicalNode {
+    fn walk(&mut self, node: &Node) -> Result<LogicalNode, ParseError> {
         match node.op() {
             Some(Op::Equals) => {
                 let children = node.children();
-                let left = self.walk(&children[0]);
-                let right = self.walk(&children[1]);
+                let left = self.walk(&children[0].clone()?)?;
+                let right = self.walk(&children[1].clone()?)?;
 
-                LogicalNode {
+                Ok(LogicalNode {
                     op: Operator::Eq {
                         left: Box::new(left),
                         right: Box::new(right),
                     },
                     children: vec![],
-                }
+                })
             }
             None => match node.literal().unwrap() {
                 // TODO: toooo verbosse
@@ -213,20 +218,20 @@ impl WhereWalker {
                     first_name,
                     second_name: _,
                     third_name: _,
-                } => LogicalNode {
+                } => Ok(LogicalNode {
                     op: Operator::Col(Column {
                         column_name: first_name,
                     }),
                     children: vec![],
-                },
-                Literal::Numeric(n) => LogicalNode {
+                }),
+                Literal::Numeric(n) => Ok(LogicalNode {
                     op: Operator::Const(Constant::Num(n)),
                     children: vec![],
-                },
-                Literal::String(s) => LogicalNode {
+                }),
+                Literal::String(s) => Ok(LogicalNode {
                     op: Operator::Const(Constant::Str(s.to_string())),
                     children: vec![],
-                },
+                }),
                 n => panic!("unexpected node: {:?}", n),
             },
             n => panic!("unexpected node: {:?}", n),
@@ -245,9 +250,9 @@ impl CreateTableWalker {
         }
     }
 
-    fn walk(&mut self, node: &Node) -> LogicalNode {
+    fn walk(&mut self, node: &Node) -> Result<LogicalNode, ParseError> {
         let children = node.children();
-        let table_name = match children[0].literal().unwrap() {
+        let table_name = match children[0].clone()?.literal().unwrap() {
             Literal::Identifier {
                 first_name,
                 second_name: _,
@@ -255,23 +260,23 @@ impl CreateTableWalker {
             } => first_name,
             _ => panic!("unexpected node: {:?}", node),
         };
-        let columns = &children[1];
+        let columns = &children[1].clone()?;
         self.seen_tables.push(table_name.to_string());
 
-        LogicalNode {
+        Ok(LogicalNode {
             op: Operator::CreateTable {
                 table_name: table_name.to_string(),
-                columns: self.walk_column_definition(columns),
+                columns: self.walk_column_definition(columns)?,
             },
             children: vec![],
-        }
+        })
     }
 
-    fn walk_column_definition(&mut self, node: &Node) -> Vec<ColumnDefinition> {
+    fn walk_column_definition(&mut self, node: &Node) -> Result<Vec<ColumnDefinition>, ParseError> {
         match node.op() {
             Some(Op::ColumnDefinition) => {
                 let children = node.children();
-                let column_name = match children[0].literal().unwrap() {
+                let column_name = match children[0].clone()?.literal().unwrap() {
                     Literal::Identifier {
                         first_name,
                         second_name: _,
@@ -280,21 +285,21 @@ impl CreateTableWalker {
                     _ => panic!("unexpected node: {:?}", node),
                 };
 
-                let column_type = children[1].ttype().unwrap();
+                let column_type = children[1].clone()?.ttype().unwrap();
 
-                vec![ColumnDefinition {
+                Ok(vec![ColumnDefinition {
                     column_name,
                     column_type,
-                }]
+                }])
             }
             Some(Op::Comma) => {
                 let columns_nodes = node.children();
                 let mut columns = vec![];
                 for column_node in columns_nodes {
-                    columns.append(&mut self.walk_column_definition(&column_node));
+                    columns.append(&mut self.walk_column_definition(&column_node?)?);
                 }
 
-                columns
+                Ok(columns)
             }
             None => {
                 panic!("unexpected node: {:?}", node);
@@ -317,9 +322,9 @@ impl InsertIntoWalker {
         }
     }
 
-    fn walk(&mut self, node: &Node) -> LogicalNode {
+    fn walk(&mut self, node: &Node) -> Result<LogicalNode, ParseError> {
         let children = node.children();
-        let table_name = match children[0].literal().unwrap() {
+        let table_name = match children[0].clone()?.literal().unwrap() {
             Literal::Identifier {
                 first_name,
                 second_name: _,
@@ -327,30 +332,30 @@ impl InsertIntoWalker {
             } => first_name,
             _ => panic!("unexpected node: {:?}", node),
         };
-        let columns = &children[1];
-        let values = &children[2];
+        let columns = &children[1].clone()?;
+        let values = &children[2].clone()?;
 
         self.seen_tables.push(table_name.to_string());
 
-        LogicalNode {
+        Ok(LogicalNode {
             op: Operator::InsertInto {
                 table_name: table_name.to_string(),
-                columns: self.walk_columns(columns),
-                values: self.walk_values(values),
+                columns: self.walk_columns(columns)?,
+                values: self.walk_values(values)?,
             },
             children: vec![],
-        }
+        })
     }
 
-    fn walk_columns(&mut self, node: &Node) -> Vec<Column> {
+    fn walk_columns(&mut self, node: &Node) -> Result<Vec<Column>, ParseError> {
         match node.op() {
             Some(Op::ColumnList) => {
                 let mut columns = vec![];
                 for c in node.children() {
-                    match c.op() {
+                    match c.clone()?.op() {
                         Some(Op::Comma) => {}
                         None => {
-                            let column_name = Self::get_str_literal(&c);
+                            let column_name = Self::get_str_literal(&c?);
                             columns.push(Column { column_name });
                         }
                         n => {
@@ -359,7 +364,7 @@ impl InsertIntoWalker {
                     }
                 }
 
-                columns
+                Ok(columns)
             }
             None => {
                 panic!("unexpected node: {:?}", node);
@@ -370,15 +375,15 @@ impl InsertIntoWalker {
         }
     }
 
-    fn walk_values(&mut self, node: &Node) -> Vec<Constant> {
+    fn walk_values(&mut self, node: &Node) -> Result<Vec<Constant>, ParseError> {
         match node.op() {
             Some(Op::Values) => {
                 let mut values = vec![];
                 for c in node.children() {
-                    match c.op() {
+                    match c.clone()?.op() {
                         Some(Op::Comma) => {}
                         None => {
-                            values.push(Self::get_constant(&c));
+                            values.push(Self::get_constant(&c?));
                         }
                         n => {
                             panic!("unexpected node: {:?}", n);
@@ -386,7 +391,7 @@ impl InsertIntoWalker {
                     }
                 }
 
-                values
+                Ok(values)
             }
             None => {
                 panic!("unexpected node: {:?}", node);
@@ -516,7 +521,7 @@ mod tests {
         let mut parser = Parser::new(lexer);
         let analyzer = Analyzer::new();
 
-        analyzer.analyze(parser.parse())
+        analyzer.analyze(parser.parse().unwrap())
     }
 
     #[test]

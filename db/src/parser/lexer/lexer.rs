@@ -2,13 +2,12 @@ use super::errors::LexError;
 use super::tokens::{PositionedToken, Token};
 
 pub struct Lexer<'a> {
-    input: &'a str,
+    pub input: &'a str,
     input_iterator: std::str::Chars<'a>,
     current_position: usize,
     is_finished: bool,
     cache: Option<char>,
     peeked: Option<Result<PositionedToken<'a>, LexError>>,
-    original_text: String,
 }
 
 impl<'a> Iterator for Lexer<'a> {
@@ -71,7 +70,6 @@ impl<'a> Lexer<'a> {
             is_finished: false,
             cache: None,
             peeked: None,
-            original_text: input.to_string(),
         }
     }
 
@@ -106,7 +104,7 @@ impl<'a> Lexer<'a> {
 
     fn lex_err(&self, _c: char) -> Option<Result<PositionedToken<'a>, LexError>> {
         Some(Err(LexError {
-            src: self.original_text.clone(),
+            src: self.input.to_string(),
             snip: (self.current_position - 1, self.current_position),
         }))
     }

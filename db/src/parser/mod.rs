@@ -8,4 +8,5 @@ mod parser;
 
 pub use parser::Parser;
 
+pub mod errors;
 pub mod tree;

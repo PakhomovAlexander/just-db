@@ -1,5 +1,7 @@
 use crate::types::ColType;
 
+use super::errors::ParseError;
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum Literal {
     Numeric(i32),
@@ -51,11 +53,9 @@ pub enum Node {
     Leaf(Literal),
     LeafType(ColType),
 
-    Infix(Op, Vec<Node>),
-    Prefix(Op, Vec<Node>),
-    Postfix(Op, Vec<Node>),
-
-    Error(String), // TODO: should not be a string
+    Infix(Op, Vec<Result<Node, ParseError>>),
+    Prefix(Op, Vec<Result<Node, ParseError>>),
+    Postfix(Op, Vec<Result<Node, ParseError>>),
 }
 
 impl Node {
@@ -68,7 +68,7 @@ impl Node {
         }
     }
 
-    pub fn children(&self) -> Vec<Node> {
+    pub fn children(&self) -> Vec<Result<Node, ParseError>> {
         match self {
             Node::Infix(_, children) => children.to_vec(),
             Node::Prefix(_, children) => children.to_vec(),

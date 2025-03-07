@@ -46,7 +46,16 @@ impl Db {
         let mut parser = Parser::new(lexer);
         let analyzer = Analyzer::new();
 
-        let l_plan = analyzer.analyze(parser.parse());
+        // TODO: do it better
+        let ast = match parser.parse() {
+            Ok(ast) => ast,
+            Err(e) => {
+                eprintln!("Error parsing query: {}", e);
+                return vec![];
+            }
+        };
+
+        let l_plan = analyzer.analyze(ast);
 
         let mut p_plan = self.optimizer.optimize(l_plan);
 
