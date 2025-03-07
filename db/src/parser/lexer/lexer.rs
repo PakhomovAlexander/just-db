@@ -8,6 +8,7 @@ pub struct Lexer<'a> {
     is_finished: bool,
     cache: Option<char>,
     peeked: Option<Result<PositionedToken<'a>, LexError>>,
+    original_text: String,
 }
 
 impl<'a> Iterator for Lexer<'a> {
@@ -70,6 +71,7 @@ impl<'a> Lexer<'a> {
             is_finished: false,
             cache: None,
             peeked: None,
+            original_text: input.to_string(),
         }
     }
 
@@ -102,11 +104,11 @@ impl<'a> Lexer<'a> {
         self.current_position - 1
     }
 
-    fn lex_err(&self, c: char) -> Option<Result<PositionedToken<'a>, LexError>> {
-        Some(Err(LexError::InvalidCharacter(
-            c,
-            self.current_position - 1,
-        )))
+    fn lex_err(&self, _c: char) -> Option<Result<PositionedToken<'a>, LexError>> {
+        Some(Err(LexError {
+            src: self.original_text.clone(),
+            snip: (self.current_position - 1, self.current_position),
+        }))
     }
 
     fn single(&mut self, token: Token<'a>) -> Option<Result<PositionedToken<'a>, LexError>> {
@@ -435,7 +437,7 @@ mod tests {
     use rstest::rstest;
 
     fn collect(lexer: Lexer) -> Vec<Result<Token, LexError>> {
-        return lexer.into_iter().map(|r| r.map(|pt| pt.token)).collect();
+        lexer.into_iter().map(|r| r.map(|pt| pt.token)).collect()
     }
 
     #[test]
@@ -466,7 +468,29 @@ mod tests {
         let lexer = Lexer::new(input);
         let actual: Vec<Result<Token, LexError>> = collect(lexer);
 
-        let expected = vec![Err(LexError::InvalidCharacter('*', 1))];
+        let expected = vec![Err(LexError {
+            src: "**".to_string(),
+            snip: (1, 2),
+        })];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn lex_error_after_correct_tokens() {
+        let input = "select * from **";
+        let lexer = Lexer::new(input);
+        let actual: Vec<Result<Token, LexError>> = collect(lexer);
+
+        let expected = vec![
+            Ok(Token::Select),
+            Ok(Token::Asterisk),
+            Ok(Token::From),
+            Err(LexError {
+                src: input.to_string(),
+                snip: (15, 16),
+            }),
+        ];
 
         assert_eq!(actual, expected);
     }
