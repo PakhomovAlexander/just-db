@@ -49,7 +49,11 @@ impl<'a> Parser<'a> {
                 let lhs = self.parse_bp(0);
 
                 let p_token = self.lexer.next();
-                let token = self.try_extract(&p_token).unwrap();
+                if p_token.is_none() {
+                    return self.parse_err("Unexpected end of input");
+                }
+
+                let token = p_token.unwrap()?.token;
 
                 match token {
                     Token::CloseParen => lhs,
@@ -238,6 +242,7 @@ impl<'a> Parser<'a> {
             src: self.lexer.input.to_string(),
             message: msg.to_string(),
             snip: (0, 0),
+            source_err: None,
         })
     }
 
@@ -415,10 +420,7 @@ impl<'a> Parser<'a> {
     ) -> Option<Token<'a>> {
         match p_token {
             Some(Ok(t)) => Some(t.token.clone()), // FIXME: clone
-            _ => {
-                dbg!(p_token);
-                None
-            }
+            _ => None,
         }
     }
 }
@@ -503,11 +505,10 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // TODO: implement error handling
     fn unexpected_token() {
-        let input = "1 2";
+        let res = parse("(1 +");
 
-        let err = parse("(1 +");
+        assert!(res.is_err());
     }
 
     #[test]

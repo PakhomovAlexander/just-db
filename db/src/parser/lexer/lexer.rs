@@ -115,7 +115,7 @@ impl<'a> Lexer<'a> {
             Some(c) if c.is_whitespace() => Some(Ok(PositionedToken {
                 token,
                 start,
-                end: self.current_position,
+                end: self.current_position - 1,
             })),
             Some(c) => self.lex_err(c),
             None => Some(Ok(PositionedToken {
@@ -430,7 +430,7 @@ impl<'a> Lexer<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::parser::lexer::{LexError, Lexer, Token};
+    use crate::parser::lexer::{LexError, Lexer, PositionedToken, Token};
     use pretty_assertions::assert_eq;
     use rstest::rstest;
 
@@ -1065,6 +1065,37 @@ mod tests {
             Ok(Token::identifier("column2")),
             Ok(Token::Int),
             Ok(Token::CloseParen),
+        ];
+
+        assert_eq!(actual, expected);
+    }
+
+    fn ptoken(token: Token, start: usize, end: usize) -> Result<PositionedToken<'_>, LexError> {
+        Ok(PositionedToken { token, start, end })
+    }
+
+    #[test]
+    fn positioned_token_test() {
+        //          "0     6  9   13   14    20  21    26 .."
+        //          "S    T   F  M     t    1    W    E   (  1  +  1  )  =  2  ;"
+        let input = "SELECT * FROM table1 WHERE (1 + 1 ) = 2;";
+        let lexer = Lexer::new(input);
+        let actual: Vec<Result<PositionedToken, LexError>> = lexer.into_iter().collect();
+
+        let expected = vec![
+            ptoken(Token::Select, 0, 6),
+            ptoken(Token::Asterisk, 7, 8),
+            ptoken(Token::From, 9, 13),
+            ptoken(Token::identifier("table1"), 14, 20),
+            ptoken(Token::Where, 21, 26),
+            ptoken(Token::OpenParen, 27, 28),
+            ptoken(Token::NumericLiteral("1".to_string()), 28, 29),
+            ptoken(Token::Plus, 30, 31),
+            ptoken(Token::NumericLiteral("1".to_string()), 32, 33),
+            ptoken(Token::CloseParen, 34, 35),
+            ptoken(Token::Equals, 36, 37),
+            ptoken(Token::NumericLiteral("2".to_string()), 38, 39),
+            ptoken(Token::Semicolon, 39, 40),
         ];
 
         assert_eq!(actual, expected);

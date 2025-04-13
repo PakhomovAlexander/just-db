@@ -1,5 +1,5 @@
 use crossterm::event::KeyEvent;
-use db::optimizer::types::Tuple;
+use db::{optimizer::types::Tuple, parser::errors::ParseError};
 use serde::{Deserialize, Serialize};
 use strum::Display;
 
@@ -27,6 +27,7 @@ pub enum Action {
     QueryResultReceived(Vec<Tuple>),
     ExecuteQueryRequested,
     ExecuteQuery(String),
+    ExecuteQueryError(ParseError),
 
     UpdateStatusBar(String),
 }

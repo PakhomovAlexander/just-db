@@ -14,9 +14,12 @@ impl AppLayout {
         let outer_layout = Layout::default()
             .direction(Direction::Vertical)
             .constraints(vec![
-                Constraint::Percentage(50),
-                Constraint::Percentage(40),
+                //Constraint::Percentage(50),
+                //Constraint::Percentage(40),
+                //Constraint::Percentage(10),
                 Constraint::Percentage(10),
+                Constraint::Percentage(40),
+                Constraint::Percentage(50),
             ])
             .split(frame.size());
 

@@ -25,7 +25,17 @@ impl Analyzer {
                 root: nodes[0].clone(),
                 seen_tables: self.seen_tables,
             },
-            Err(e) => panic!("error: {:?}", e), //FIXME: no panic
+            // Err(e) => panic!("error: {:?}", e), //FIXME: no panic
+            Err(e) => {
+                eprint!("error: {:?}", e);
+                LogicalPlan {
+                    root: LogicalNode {
+                        op: Operator::Const(Constant::Num(0)),
+                        children: vec![],
+                    },
+                    seen_tables: vec![],
+                }
+            }
         }
     }
 

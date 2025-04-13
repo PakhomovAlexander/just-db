@@ -7,7 +7,7 @@ use crate::{
         types::{StorageEngine, Tuple},
         Optimizer,
     },
-    parser::{Lexer, Parser},
+    parser::{errors::ParseError, Lexer, Parser},
 };
 
 pub struct Db {
@@ -41,24 +41,15 @@ impl Db {
         }
     }
 
-    pub fn run_query(&self, query: &str) -> Vec<Tuple> {
+    pub fn run_query(&self, query: &str) -> Result<Vec<Tuple>, ParseError> {
         let lexer = Lexer::new(query);
         let mut parser = Parser::new(lexer);
         let analyzer = Analyzer::new();
 
-        // TODO: do it better
-        let ast = match parser.parse() {
-            Ok(ast) => ast,
-            Err(e) => {
-                eprintln!("Error parsing query: {}", e);
-                return vec![];
-            }
-        };
-
-        let l_plan = analyzer.analyze(ast);
+        let l_plan = analyzer.analyze(parser.parse()?);
 
         let mut p_plan = self.optimizer.optimize(l_plan);
 
-        p_plan.execute_all(Rc::clone(&self.storage_rc), Rc::clone(&self.catalog_rc))
+        Ok(p_plan.execute_all(Rc::clone(&self.storage_rc), Rc::clone(&self.catalog_rc)))
     }
 }

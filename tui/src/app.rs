@@ -3,6 +3,8 @@ use std::borrow::Borrow;
 use color_eyre::{eyre, Result};
 use crossterm::event::KeyEvent;
 use db::embedded::Db;
+use db::parser::errors::ParseError;
+use miette::Report;
 use ratatui::prelude::Rect;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
@@ -187,13 +189,32 @@ impl App {
                     self.action_tx.send(execute_query)?;
                 }
                 Action::ExecuteQuery(query) => {
-                    let tuples = self.db.run_query(&query.clone());
-                    let cnt = tuples.len();
-                    let query_result_received = Action::QueryResultReceived(tuples);
-                    self.action_tx.send(query_result_received)?;
-                    self.action_tx.send(Action::UpdateStatusBar(
-                        format!("rows get: {}, query: {}", cnt, &query.clone()).to_string(),
-                    ))?;
+                    let result = self.db.run_query(&query.clone());
+                    match result {
+                        Ok(tuples) => {
+                            let cnt = tuples.len();
+                            let query_result_received = Action::QueryResultReceived(tuples);
+                            self.action_tx.send(query_result_received)?;
+                            self.action_tx.send(Action::UpdateStatusBar(
+                                format!("rows get: {}, query: {}", cnt, &query.clone()).to_string(),
+                            ))?;
+                        }
+                        Err(err) => {
+                            let error = Action::ExecuteQueryError(err.clone());
+                            let p_err = ParseError {
+                                src: "select ***".to_string(),
+                                snip: (2, 5),
+                                message: "Error executing query".to_string(),
+                                source_err: None,
+                            };
+                            self.action_tx.send(error)?;
+
+                            let report = Report::new(p_err);
+
+                            self.action_tx
+                                .send(Action::UpdateStatusBar(format!("{:?}", report)))?;
+                        }
+                    };
                 }
                 _ => {}
             }

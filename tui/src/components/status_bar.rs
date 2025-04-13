@@ -1,10 +1,9 @@
-
 use color_eyre::Result;
 use ratatui::{
     layout::Rect,
     style::{Style, Stylize},
     text::Span,
-    widgets::Paragraph,
+    widgets::{Block, Paragraph},
     Frame,
 };
 
@@ -49,9 +48,7 @@ impl Component for StatusBar {
     }
 
     fn draw(&mut self, frame: &mut Frame, area: Rect) -> Result<()> {
-        let message = format!("Status: {}", self.last_message);
-        let span = Span::styled(message, Style::new().dim());
-        let paragraph = Paragraph::new(span);
+        let paragraph = Paragraph::new(self.last_message.clone()).block(Block::bordered());
         frame.render_widget(paragraph, area);
         Ok(())
     }
