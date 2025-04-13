@@ -3,8 +3,8 @@ use super::tokens::{PositionedToken, Token};
 
 pub struct Lexer<'a> {
     pub input: &'a str,
+    pub current_position: usize,
     input_iterator: std::str::Chars<'a>,
-    current_position: usize,
     is_finished: bool,
     cache: Option<char>,
     peeked: Option<Result<PositionedToken<'a>, LexError>>,

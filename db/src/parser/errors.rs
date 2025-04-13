@@ -1,4 +1,4 @@
-use miette::Diagnostic;
+use miette::{Diagnostic, SourceSpan};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -11,7 +11,7 @@ pub struct ParseError {
     #[source_code]
     pub src: String,
 
-    #[label("Error here")]
+    #[label("here")]
     pub snip: (usize, usize),
 
     #[help]

@@ -4,7 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-miette = { version = "7.5.0", features = ["fancy"] }
+# miette = { version = "7.5.0", features = ["fancy"] }
+miette = { version = "7.5.0" }
 serde = { version = "1.0.211", features = ["derive"] }
 strum = { version = "0.26.3", features = ["derive"] }
 thiserror = "2.0.12"

@@ -4,8 +4,9 @@ use color_eyre::{eyre, Result};
 use crossterm::event::KeyEvent;
 use db::embedded::Db;
 use db::parser::errors::ParseError;
-use miette::Report;
+use miette::{Report, SourceOffset, SourceSpan};
 use ratatui::prelude::Rect;
+use ratatui::text::ToText;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tracing::{debug, info};
@@ -200,19 +201,7 @@ impl App {
                             ))?;
                         }
                         Err(err) => {
-                            let error = Action::ExecuteQueryError(err.clone());
-                            let p_err = ParseError {
-                                src: "select ***".to_string(),
-                                snip: (2, 5),
-                                message: "Error executing query".to_string(),
-                                source_err: None,
-                            };
-                            self.action_tx.send(error)?;
-
-                            let report = Report::new(p_err);
-
-                            self.action_tx
-                                .send(Action::UpdateStatusBar(format!("{:?}", report)))?;
+                            self.action_tx.send(Action::Error(err))?;
                         }
                     };
                 }
@@ -239,10 +228,10 @@ impl App {
                 let l = AppLayout::from(frame.borrow());
 
                 let area = l.get(component.name()).unwrap();
-                if let Err(err) = component.draw(frame, area) {
-                    let _ = self
-                        .action_tx
-                        .send(Action::Error(format!("Failed to draw: {:?}", err)));
+                if let Err(_err) = component.draw(frame, area) {
+                    // let _ = self
+                    //     .action_tx
+                    //     .send(Action::Error(format!("Failed to draw: {:?}", err)));
                 }
             }
         })?;

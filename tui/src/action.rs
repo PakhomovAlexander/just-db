@@ -12,7 +12,6 @@ pub enum Action {
     Resume,
     Quit,
     ClearScreen,
-    Error(String),
     Help,
 
     D,
@@ -27,7 +26,7 @@ pub enum Action {
     QueryResultReceived(Vec<Tuple>),
     ExecuteQueryRequested,
     ExecuteQuery(String),
-    ExecuteQueryError(ParseError),
 
     UpdateStatusBar(String),
+    Error(ParseError),
 }

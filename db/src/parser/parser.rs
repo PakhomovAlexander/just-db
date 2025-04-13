@@ -1,3 +1,7 @@
+use std::i64;
+
+use serde::de::value;
+
 use crate::parser::errors::ParseError;
 use crate::parser::lexer::Lexer;
 use crate::parser::lexer::Token;
@@ -22,13 +26,14 @@ impl<'a> Parser<'a> {
 
     fn parse_bp(&mut self, min_bp: u8) -> Result<Node, ParseError> {
         let pos_token = self.lexer.next();
-
-        let token = self.try_extract(&pos_token);
-        if token.is_none() {
-            return self.parse_err("Unexpected end of input");
+        if pos_token.is_none() {
+            let pos = self.lexer.current_position;
+            return self.parse_err("Unexpected end of input", pos, pos);
         }
+        let pos_token = pos_token.unwrap()?;
+        let token = pos_token.token.clone();
 
-        let mut lhs = match token.unwrap() {
+        let mut lhs = match token {
             Token::NumericLiteral(i) => Ok(Node::Leaf(Literal::numeric(i))),
             Token::StringLiteral(s) => Ok(Node::Leaf(Literal::string(s))),
             Token::Identifier {
@@ -50,21 +55,23 @@ impl<'a> Parser<'a> {
 
                 let p_token = self.lexer.next();
                 if p_token.is_none() {
-                    return self.parse_err("Unexpected end of input");
+                    let pos = self.lexer.current_position;
+                    return self.parse_err("Unexpected end of input", pos, pos);
                 }
 
-                let token = p_token.unwrap()?.token;
+                let p_token = p_token.unwrap()?;
+                let token = p_token.token.clone();
 
                 match token {
                     Token::CloseParen => lhs,
-                    s => return self.unexpected_token_err(s),
+                    s => return self.unexpected_token_err(p_token),
                 }
             }
             Token::Select => self.parse_select(min_bp),
             Token::Create => self.parse_create(min_bp),
             Token::Drop => self.parse_drop(min_bp),
             Token::Insert => self.parse_insert(min_bp),
-            s => return self.unexpected_token_err(s),
+            s => return self.unexpected_token_err(pos_token),
         };
 
         loop {
@@ -129,15 +136,19 @@ impl<'a> Parser<'a> {
 
     fn parse_drop_table(&mut self, _min_bp: u8) -> Result<Node, ParseError> {
         let p_token = self.lexer.next();
-        let token = self.try_extract(&p_token).unwrap();
+        if p_token.is_none() {
+            let pos = self.lexer.current_position;
+            return self.parse_err("Unexpected end of input", pos, pos);
+        }
+        let p_token = p_token.unwrap()?;
 
-        let lhs = match token {
+        let lhs = match p_token.token.clone() {
             Token::Identifier {
                 first_name,
                 second_name: None,
                 third_name: None,
             } => Literal::identifier(first_name),
-            s => return self.unexpected_token_err(s),
+            _ => return self.unexpected_token_err(p_token),
         };
 
         Ok(Node::Prefix(Op::DropTable, vec![Ok(Node::Leaf(lhs))]))
@@ -155,42 +166,59 @@ impl<'a> Parser<'a> {
 
     fn parse_create_table(&mut self, _min_bp: u8) -> Result<Node, ParseError> {
         let p_token = self.lexer.next();
-        let token = self.try_extract(&p_token).unwrap();
+        if p_token.is_none() {
+            let pos = self.lexer.current_position;
+            return self.parse_err("Unexpected end of input", pos, pos);
+        }
+        let p_token = p_token.unwrap()?;
 
-        let lhs = match token {
+        let lhs = match p_token.token.clone() {
             Token::Identifier {
                 first_name,
                 second_name: None,
                 third_name: None,
             } => Literal::identifier(first_name),
-            s => return self.unexpected_token_err(s),
+            s => return self.unexpected_token_err(p_token),
         };
 
         let p_token = self.lexer.next();
-        let token = self.try_extract(&p_token).unwrap();
+        if p_token.is_none() {
+            let pos = self.lexer.current_position;
+            return self.parse_err("Unexpected end of input", pos, pos);
+        }
+        let p_token = p_token.unwrap()?;
 
-        match token {
+        match p_token.token.clone() {
             Token::OpenParen => {
                 let mut columns = vec![];
 
                 loop {
                     let p_token = self.lexer.next();
-                    let token = self.try_extract(&p_token).unwrap();
+                    if p_token.is_none() {
+                        let pos = self.lexer.current_position;
+                        return self.parse_err("Unexpected end of input", pos, pos);
+                    }
+                    let p_token = p_token.unwrap()?;
 
-                    let column_name = match token {
+                    let column_name = match p_token.token.clone() {
                         Token::Identifier {
                             first_name,
                             second_name: None,
                             third_name: None,
                         } => Literal::identifier(first_name),
                         Token::CloseParen => break,
-                        s => return self.unexpected_token_err(s),
+                        s => return self.unexpected_token_err(p_token),
                     };
 
                     let p_token = self.lexer.next();
-                    let token = self.try_extract(&p_token).unwrap();
+                    if p_token.is_none() {
+                        let pos = self.lexer.current_position;
+                        return self.parse_err("Unexpected end of input", pos, pos);
+                    }
 
-                    match token {
+                    let p_token = p_token.unwrap()?;
+
+                    match p_token.token.clone() {
                         Token::Int => {
                             columns.push(Ok(Node::Infix(
                                 Op::ColumnDefinition,
@@ -200,16 +228,20 @@ impl<'a> Parser<'a> {
                                 ],
                             )));
                         }
-                        s => return self.unexpected_token_err(s),
+                        _ => return self.unexpected_token_err(p_token),
                     }
 
                     let p_token = self.lexer.next();
-                    let token = self.try_extract(&p_token).unwrap();
+                    if p_token.is_none() {
+                        let pos = self.lexer.current_position;
+                        return self.parse_err("Unexpected end of input", pos, pos);
+                    }
+                    let p_token = p_token.unwrap()?;
 
-                    match token {
+                    match p_token.token.clone() {
                         Token::Comma => continue,
                         Token::CloseParen => break,
-                        s => return self.unexpected_token_err(s),
+                        s => return self.unexpected_token_err(p_token),
                     }
                 }
 
@@ -225,23 +257,35 @@ impl<'a> Parser<'a> {
                     ))
                 }
             }
-            s => return self.unexpected_token_err(s),
+            s => return self.unexpected_token_err(p_token),
         }
     }
 
-    fn unexpected_token_err(&mut self, token: Token) -> Result<Node, ParseError> {
-        self.parse_err(&format!("Unexpected token: {:?}", token))
+    fn unexpected_token_err(&mut self, token: PositionedToken) -> Result<Node, ParseError> {
+        self.parse_err(
+            &format!("Unexpected token: {:?}", token),
+            token.start,
+            token.end,
+        )
     }
 
-    fn unexpected_operator_err(&mut self, op: Op) -> Result<Node, ParseError> {
-        self.parse_err(&format!("Unexpected operator: {:?}", op))
+    fn unexpected_operator_err(
+        &mut self,
+        op: Op,
+        token: PositionedToken,
+    ) -> Result<Node, ParseError> {
+        self.parse_err(
+            &format!("Unexpected operator: {:?}", op),
+            token.start,
+            token.end,
+        )
     }
 
-    fn parse_err(&mut self, msg: &str) -> Result<Node, ParseError> {
+    fn parse_err(&mut self, msg: &str, start: usize, end: usize) -> Result<Node, ParseError> {
         Err(ParseError {
             src: self.lexer.input.to_string(),
             message: msg.to_string(),
-            snip: (0, 0),
+            snip: (start, end).into(),
             source_err: None,
         })
     }
@@ -251,11 +295,12 @@ impl<'a> Parser<'a> {
 
         let p_token = self.lexer.next();
         let token = self.try_extract(&p_token);
+        let p_token = p_token.unwrap()?;
 
         match token {
             Some(Token::From) => Ok(Node::Prefix(Op::Select, vec![rhs, self.parse_from(min_bp)])),
             None => Ok(Node::Prefix(Op::Select, vec![rhs])),
-            Some(s) => self.unexpected_token_err(s),
+            Some(_) => self.unexpected_token_err(p_token),
         }
     }
 
@@ -264,11 +309,12 @@ impl<'a> Parser<'a> {
 
         let p_token = self.lexer.next();
         let token = self.try_extract(&p_token);
+        let p_token = p_token.unwrap()?;
 
         match token {
             Some(Token::Where) => Ok(Node::Prefix(Op::From, vec![rhs, self.parse_where(min_bp)])),
             None => Ok(Node::Prefix(Op::From, vec![rhs])),
-            Some(s) => self.unexpected_token_err(s),
+            Some(_) => self.unexpected_token_err(p_token),
         }
     }
 
@@ -277,10 +323,11 @@ impl<'a> Parser<'a> {
 
         let p_token = self.lexer.next();
         let token = self.try_extract(&p_token);
+        let p_token = p_token.unwrap()?;
 
         match token {
             None => Ok(Node::Prefix(Op::Where, vec![rhs])),
-            Some(s) => self.unexpected_token_err(s),
+            Some(_) => self.unexpected_token_err(p_token),
         }
     }
 
@@ -362,11 +409,19 @@ impl<'a> Parser<'a> {
                 loop {
                     let p_token = self.lexer.next();
                     let token = self.try_extract(&p_token).unwrap();
+                    let p_token = p_token.unwrap();
+                    if p_token.is_err() {
+                        let err = p_token.unwrap_err();
+                        let (start, end) = err.snip;
+                        values.push(self.parse_err("Parse error", start, end));
+                        continue;
+                    }
+
                     let value = match token {
                         Token::NumericLiteral(i) => Ok(Node::Leaf(Literal::numeric(i))),
                         Token::CloseParen => break,
                         Token::Comma => continue,
-                        s => self.unexpected_token_err(s),
+                        s => self.unexpected_token_err(p_token.unwrap()),
                     };
 
                     values.push(value);
@@ -374,7 +429,15 @@ impl<'a> Parser<'a> {
 
                 values
             }
-            s => vec![self.unexpected_token_err(s)],
+            s => {
+                let value = p_token.unwrap();
+                if value.is_err() {
+                    let err = value.unwrap_err();
+                    let (start, end) = err.snip;
+                    return vec![self.parse_err("Parse error", start, end)];
+                }
+                vec![self.unexpected_token_err(value.unwrap())]
+            }
         }
     }
 
@@ -509,6 +572,17 @@ mod tests {
         let res = parse("(1 +");
 
         assert!(res.is_err());
+    }
+
+    #[test]
+    fn unexpected_positioned_token() {
+        let res = parse("select ***");
+
+        assert!(res.is_err());
+
+        let err = res.unwrap_err();
+        assert_eq!(err.src, "select ***");
+        assert_eq!(err.snip, (7, 3));
     }
 
     #[test]
