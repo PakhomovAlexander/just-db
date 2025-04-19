@@ -1,4 +1,5 @@
 use db::{analyzer::AnalyzeError, embedded::Db};
+use miette::Report;
 
 #[test]
 fn create_insert_select() -> Result<(), AnalyzeError> {
@@ -36,6 +37,10 @@ fn errors() {
     let db = Db::new();
 
     let err = db.run_query("asdf asdf asdf ");
-
     assert!(err.is_err());
+
+    dbg!(&err);
+    let report = Report::new(err.err().unwrap());
+    let message = format!("{:?}", report);
+    assert!(message.contains("Unexpected end of query"));
 }

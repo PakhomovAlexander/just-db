@@ -573,7 +573,7 @@ mod tests {
 
         let err = res.unwrap_err();
         assert_eq!(err.src, "select ***");
-        assert_eq!(err.snip, (8, 1));
+        assert_eq!(err.snip, (8, 2));
     }
 
     #[test]

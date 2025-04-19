@@ -128,7 +128,7 @@ fn unexpected_op_err(actual_op: String, expected_ops: Vec<String>) -> AnalyzeErr
 fn analyze_err(message: &str) -> AnalyzeError {
     AnalyzeError {
         src: "".to_string(), // TODO: get from context
-        snip: (1, 0),        // TODO: get from context
+        snip: (0, 0),        // TODO: get from context
         message: message.to_string(),
         source_err: None,
     }
@@ -675,7 +675,7 @@ mod tests {
             e,
             Err(AnalyzeError {
                 src: "".to_string(), //TODO: should be correct src
-                snip: (1, 0),
+                snip: (0, 0),
                 message: "Unexpected end of query".to_string(),
                 source_err: None
             })
