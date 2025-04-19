@@ -1,5 +1,5 @@
 use crossterm::event::KeyEvent;
-use db::{optimizer::types::Tuple, parser::errors::ParseError};
+use db::{analyzer::AnalyzeError, optimizer::types::Tuple};
 use serde::{Deserialize, Serialize};
 use strum::Display;
 
@@ -28,5 +28,5 @@ pub enum Action {
     ExecuteQuery(String),
 
     UpdateStatusBar(String),
-    Error(ParseError),
+    Error(AnalyzeError),
 }

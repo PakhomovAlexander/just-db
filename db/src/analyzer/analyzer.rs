@@ -6,7 +6,7 @@ use crate::parser::{
     tree::{Literal, Node, Op},
 };
 
-use super::tree::*;
+use super::{tree::*, AnalyzeError};
 
 pub struct Analyzer {
     seen_tables: Vec<String>,
@@ -19,28 +19,16 @@ impl Analyzer {
         }
     }
 
-    pub fn analyze(mut self, node: Node) -> LogicalPlan {
-        match self.walk(node) {
-            Ok(nodes) => LogicalPlan {
-                root: nodes[0].clone(),
-                seen_tables: self.seen_tables,
-            },
-            // Err(e) => panic!("error: {:?}", e), //FIXME: no panic
-            Err(e) => {
-                eprint!("error: {:?}", e);
-                LogicalPlan {
-                    root: LogicalNode {
-                        op: Operator::Const(Constant::Num(0)),
-                        children: vec![],
-                    },
-                    seen_tables: vec![],
-                }
-            }
-        }
+    pub fn analyze(mut self, node: Node) -> Result<LogicalPlan, AnalyzeError> {
+        let analyzed_nodes = self.walk(node)?;
+        Ok(LogicalPlan {
+            root: analyzed_nodes[0].clone(),
+            seen_tables: self.seen_tables,
+        })
     }
 
     #[allow(clippy::only_used_in_recursion)]
-    fn walk(&mut self, node: Node) -> Result<Vec<LogicalNode>, ParseError> {
+    fn walk(&mut self, node: Node) -> Result<Vec<LogicalNode>, AnalyzeError> {
         match node.op() {
             Some(Op::Select) => {
                 let children = node.children();
@@ -114,12 +102,18 @@ impl Analyzer {
 
                 Ok(vec![l_node?])
             }
-            None => {
-                panic!("unexpected node: {:?}", node);
-            }
-            n => {
-                panic!("unexpected node: {:?}", n);
-            }
+            None => Err(AnalyzeError {
+                src: "lol".to_string(),
+                snip: (1, 0),
+                message: "Unexpected end of query".to_string(),
+                source_err: None,
+            }),
+            n => Err(AnalyzeError {
+                src: "lol".to_string(),
+                snip: (1, 0),
+                message: "Unexpected perator".to_string(),
+                source_err: None,
+            }),
         }
     }
 }
@@ -531,7 +525,7 @@ mod tests {
         let mut parser = Parser::new(lexer);
         let analyzer = Analyzer::new();
 
-        analyzer.analyze(parser.parse().unwrap())
+        analyzer.analyze(parser.parse().unwrap()).unwrap()
     }
 
     #[test]
@@ -649,6 +643,24 @@ mod tests {
                 ),
                 vec!["table1".to_string()]
             )
+        );
+    }
+
+    #[test]
+    fn incorrect_query() {
+        let lexer = Lexer::new("sel");
+        let mut parser = Parser::new(lexer);
+        let analyzer = Analyzer::new();
+
+        let e = analyzer.analyze(parser.parse().unwrap());
+        assert_eq!(
+            e,
+            Err(AnalyzeError {
+                src: "lol".to_string(),
+                snip: (1, 0),
+                message: "Unexpected end of query".to_string(),
+                source_err: None
+            })
         );
     }
 }

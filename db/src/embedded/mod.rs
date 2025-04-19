@@ -1,13 +1,13 @@
 use std::{cell::RefCell, rc::Rc};
 
 use crate::{
-    analyzer::Analyzer,
+    analyzer::{AnalyzeError, Analyzer},
     catalog::Catalog,
     optimizer::{
         types::{StorageEngine, Tuple},
         Optimizer,
     },
-    parser::{errors::ParseError, Lexer, Parser},
+    parser::{Lexer, Parser},
 };
 
 pub struct Db {
@@ -41,12 +41,12 @@ impl Db {
         }
     }
 
-    pub fn run_query(&self, query: &str) -> Result<Vec<Tuple>, ParseError> {
+    pub fn run_query(&self, query: &str) -> Result<Vec<Tuple>, AnalyzeError> {
         let lexer = Lexer::new(query);
         let mut parser = Parser::new(lexer);
         let analyzer = Analyzer::new();
 
-        let l_plan = analyzer.analyze(parser.parse()?);
+        let l_plan = analyzer.analyze(parser.parse()?)?;
 
         let mut p_plan = self.optimizer.optimize(l_plan);
 

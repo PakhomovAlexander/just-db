@@ -1,7 +1,7 @@
-use db::{embedded::Db, parser::errors::ParseError};
+use db::{analyzer::AnalyzeError, embedded::Db};
 
 #[test]
-fn create_insert_select() -> Result<(), ParseError> {
+fn create_insert_select() -> Result<(), AnalyzeError> {
     let db = Db::new();
 
     let create_table_result = db.run_query("CREATE TABLE table1 (col1 INT, col2 INT, col3 INT)")?;

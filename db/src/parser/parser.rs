@@ -1,7 +1,3 @@
-use std::i64;
-
-use serde::de::value;
-
 use crate::parser::errors::ParseError;
 use crate::parser::lexer::Lexer;
 use crate::parser::lexer::Token;
@@ -257,7 +253,7 @@ impl<'a> Parser<'a> {
                     ))
                 }
             }
-            s => return self.unexpected_token_err(p_token),
+            s => self.unexpected_token_err(p_token),
         }
     }
 
@@ -285,7 +281,7 @@ impl<'a> Parser<'a> {
         Err(ParseError {
             src: self.lexer.input.to_string(),
             message: msg.to_string(),
-            snip: (start, end).into(),
+            snip: (start, end - start),
             source_err: None,
         })
     }
@@ -295,12 +291,11 @@ impl<'a> Parser<'a> {
 
         let p_token = self.lexer.next();
         let token = self.try_extract(&p_token);
-        let p_token = p_token.unwrap()?;
 
         match token {
             Some(Token::From) => Ok(Node::Prefix(Op::Select, vec![rhs, self.parse_from(min_bp)])),
             None => Ok(Node::Prefix(Op::Select, vec![rhs])),
-            Some(_) => self.unexpected_token_err(p_token),
+            Some(_) => self.unexpected_token_err(p_token.unwrap()?),
         }
     }
 
@@ -309,12 +304,11 @@ impl<'a> Parser<'a> {
 
         let p_token = self.lexer.next();
         let token = self.try_extract(&p_token);
-        let p_token = p_token.unwrap()?;
 
         match token {
             Some(Token::Where) => Ok(Node::Prefix(Op::From, vec![rhs, self.parse_where(min_bp)])),
             None => Ok(Node::Prefix(Op::From, vec![rhs])),
-            Some(_) => self.unexpected_token_err(p_token),
+            Some(_) => self.unexpected_token_err(p_token.unwrap()?),
         }
     }
 
@@ -323,11 +317,10 @@ impl<'a> Parser<'a> {
 
         let p_token = self.lexer.next();
         let token = self.try_extract(&p_token);
-        let p_token = p_token.unwrap()?;
 
         match token {
             None => Ok(Node::Prefix(Op::Where, vec![rhs])),
-            Some(_) => self.unexpected_token_err(p_token),
+            Some(_) => self.unexpected_token_err(p_token.unwrap()?),
         }
     }
 

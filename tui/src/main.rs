@@ -1,10 +1,8 @@
 use clap::Parser;
 use cli::Cli;
 use color_eyre::Result;
-use db::parser::errors::ParseError;
 
 use crate::app::App;
-use miette::{Report, SourceOffset, SourceSpan};
 
 mod action;
 mod app;

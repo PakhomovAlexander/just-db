@@ -139,7 +139,7 @@ mod tests {
         let mut parser = Parser::new(lexer);
         let analyzer = Analyzer::new();
 
-        analyzer.analyze(parser.parse().unwrap())
+        analyzer.analyze(parser.parse().unwrap()).unwrap()
     }
 
     #[test]

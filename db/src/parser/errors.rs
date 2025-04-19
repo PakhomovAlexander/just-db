@@ -1,4 +1,4 @@
-use miette::{Diagnostic, SourceSpan};
+use miette::Diagnostic;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 

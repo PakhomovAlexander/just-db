@@ -1,13 +1,12 @@
 use std::fmt::Debug;
 
-use color_eyre::{owo_colors::OwoColorize, Result};
-use db::parser::errors::ParseError;
+use color_eyre::Result;
+use db::{analyzer::AnalyzeError, parser::errors::ParseError};
 use miette::Report;
 use ratatui::{
     layout::Rect,
-    style::{Color, Style, Stylize},
-    text::{Line, Span, Text, ToText},
-    widgets::{Block, Clear, Paragraph},
+    style::{Color, Style},
+    widgets::{Clear, Paragraph},
     Frame,
 };
 
@@ -18,7 +17,7 @@ use crate::action::Action;
 #[derive(Debug, Clone, PartialEq)]
 pub struct StatusBar {
     last_message: String,
-    p_err: Option<ParseError>,
+    p_err: Option<AnalyzeError>,
 }
 
 impl Default for StatusBar {
