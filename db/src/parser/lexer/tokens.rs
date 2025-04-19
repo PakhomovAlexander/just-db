@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use super::LexError;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -5,6 +7,12 @@ pub struct PositionedToken<'a> {
     pub token: Token<'a>,
     pub start: usize,
     pub end: usize,
+}
+
+impl Display for PositionedToken<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.token)
+    }
 }
 
 impl<'a> PositionedToken<'a> {
@@ -131,6 +139,18 @@ pub enum Token<'a> {
 
     SingleLineComment(String),
     MultiLineComment(String),
+}
+
+impl Display for Token<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Token::Identifier { first_name, .. } => write!(f, "{}", first_name),
+            Token::StringLiteral(s) => write!(f, "{}", s),
+            Token::NumericLiteral(s) => write!(f, "{}", s),
+            Token::BooleanLiteral(b) => write!(f, "{}", b),
+            _ => write!(f, "{:?}", self),
+        }
+    }
 }
 
 impl<'a> Token<'a> {

@@ -30,3 +30,12 @@ fn create_insert_select() -> Result<(), AnalyzeError> {
 
     Ok(())
 }
+
+#[test]
+fn errors() {
+    let db = Db::new();
+
+    let err = db.run_query("asdf asdf asdf ");
+
+    assert!(err.is_err());
+}

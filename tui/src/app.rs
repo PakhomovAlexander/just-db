@@ -49,7 +49,7 @@ impl App {
             components: vec![
                 Box::new(Editor::new()),
                 Box::new(Table::new()),
-                Box::new(FpsCounter::default()),
+                //Box::new(FpsCounter::default()),
                 Box::new(StatusBar::default()),
                 // must be last
                 Box::new(HelpPopup::default()),

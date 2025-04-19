@@ -26,7 +26,7 @@ impl From<ParseError> for AnalyzeError {
         Self {
             src: err.src.clone(),
             snip: err.snip,
-            message: "Lexical error".to_string(),
+            message: err.message.to_string(),
             source_err: Some(err),
         }
     }

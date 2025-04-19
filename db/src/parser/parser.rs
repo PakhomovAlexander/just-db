@@ -126,7 +126,7 @@ impl<'a> Parser<'a> {
         let token = self.try_extract(&p_token).unwrap();
         match token {
             Token::Table => self.parse_drop_table(min_bp),
-            s => panic!("Unexpected token: {:?}", s),
+            s => panic!("Unexpected token: {}", s),
         }
     }
 
@@ -156,7 +156,7 @@ impl<'a> Parser<'a> {
 
         match token {
             Token::Table => self.parse_create_table(min_bp),
-            s => panic!("Unexpected token: {:?}", s),
+            s => panic!("Unexpected token: {}", s),
         }
     }
 
@@ -259,8 +259,8 @@ impl<'a> Parser<'a> {
 
     fn unexpected_token_err(&mut self, token: PositionedToken) -> Result<Node, ParseError> {
         self.parse_err(
-            &format!("Unexpected token: {:?}", token),
-            token.start,
+            &format!("Unexpected token: {}", token),
+            token.start - 1,
             token.end,
         )
     }
@@ -271,7 +271,7 @@ impl<'a> Parser<'a> {
         token: PositionedToken,
     ) -> Result<Node, ParseError> {
         self.parse_err(
-            &format!("Unexpected operator: {:?}", op),
+            &format!("Unexpected operator: {}", op),
             token.start,
             token.end,
         )
@@ -330,7 +330,7 @@ impl<'a> Parser<'a> {
 
         match token {
             Token::Into => self.parse_insert_into(min_bp),
-            s => panic!("Unexpected token: {:?}", s),
+            s => panic!("Unexpected token: {}", s),
         }
     }
 
@@ -344,7 +344,7 @@ impl<'a> Parser<'a> {
                 second_name: None,
                 third_name: None,
             } => Literal::identifier(first_name),
-            s => panic!("Unexpected token: {:?}", s),
+            s => panic!("Unexpected token: {}", s),
         };
 
         let p_token = self.lexer.next();
@@ -365,7 +365,7 @@ impl<'a> Parser<'a> {
                         } => Literal::identifier(first_name),
                         Token::Comma => continue,
                         Token::CloseParen => break,
-                        s => panic!("Unexpected token: {:?}", s),
+                        s => panic!("Unexpected token: {}", s),
                     };
 
                     columns.push(Ok(Node::Leaf(column_name)));
@@ -375,7 +375,7 @@ impl<'a> Parser<'a> {
                 let token = self.try_extract(&p_token).unwrap();
                 let values = match token {
                     Token::Values => self.parse_values(),
-                    s => panic!("Unexpected token: {:?}", s),
+                    s => panic!("Unexpected token: {}", s),
                 };
 
                 Ok(Node::Prefix(
@@ -387,7 +387,7 @@ impl<'a> Parser<'a> {
                     ],
                 ))
             }
-            s => panic!("Unexpected token: {:?}", s),
+            s => panic!("Unexpected token: {}", s),
         }
     }
 
@@ -405,8 +405,7 @@ impl<'a> Parser<'a> {
                     let p_token = p_token.unwrap();
                     if p_token.is_err() {
                         let err = p_token.unwrap_err();
-                        let (start, end) = err.snip;
-                        values.push(self.parse_err("Parse error", start, end));
+                        values.push(Err(err.into()));
                         continue;
                     }
 
@@ -426,8 +425,7 @@ impl<'a> Parser<'a> {
                 let value = p_token.unwrap();
                 if value.is_err() {
                     let err = value.unwrap_err();
-                    let (start, end) = err.snip;
-                    return vec![self.parse_err("Parse error", start, end)];
+                    return vec![Err(err.into())];
                 }
                 vec![self.unexpected_token_err(value.unwrap())]
             }
@@ -437,7 +435,7 @@ impl<'a> Parser<'a> {
     fn prefix_operator_bp(op: &Op) -> ((), u8) {
         match op {
             Op::Not => ((), 7),
-            _ => panic!("Unexpected prefix operator: {:?}", op),
+            _ => panic!("Unexpected prefix operator: {}", op),
         }
     }
 
@@ -466,7 +464,7 @@ impl<'a> Parser<'a> {
 
             Op::CloseParen => None,
 
-            _ => panic!("Unexpected infix operator: {:?}", op),
+            _ => panic!("Unexpected infix operator: {}", op),
         }
     }
 
@@ -575,7 +573,7 @@ mod tests {
 
         let err = res.unwrap_err();
         assert_eq!(err.src, "select ***");
-        assert_eq!(err.snip, (7, 3));
+        assert_eq!(err.snip, (8, 1));
     }
 
     #[test]

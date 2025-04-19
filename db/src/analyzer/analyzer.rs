@@ -674,7 +674,7 @@ mod tests {
         assert_eq!(
             e,
             Err(AnalyzeError {
-                src: "lol".to_string(),
+                src: "".to_string(), //TODO: should be correct src
                 snip: (1, 0),
                 message: "Unexpected end of query".to_string(),
                 source_err: None

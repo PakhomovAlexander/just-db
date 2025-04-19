@@ -25,8 +25,8 @@ impl From<LexError> for ParseError {
     fn from(err: LexError) -> Self {
         Self {
             src: err.src.clone(),
-            snip: err.snip,
-            message: "Lexical error".to_string(),
+            snip: (err.snip.0 - 1, err.snip.1),
+            message: "Unexpected character".to_string(),
             source_err: Some(err),
         }
     }
