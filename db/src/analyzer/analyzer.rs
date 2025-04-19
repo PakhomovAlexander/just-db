@@ -1,10 +1,6 @@
-use core::panic;
 use std::vec;
 
-use crate::parser::{
-    errors::ParseError,
-    tree::{Literal, Node, Op},
-};
+use crate::parser::tree::{Literal, Node, Op};
 
 use super::{tree::*, AnalyzeError};
 
@@ -102,19 +98,39 @@ impl Analyzer {
 
                 Ok(vec![l_node?])
             }
-            None => Err(AnalyzeError {
-                src: "lol".to_string(),
-                snip: (1, 0),
-                message: "Unexpected end of query".to_string(),
-                source_err: None,
-            }),
-            n => Err(AnalyzeError {
-                src: "lol".to_string(),
-                snip: (1, 0),
-                message: "Unexpected perator".to_string(),
-                source_err: None,
-            }),
+            None => Err(analyze_err("Unexpected end of query")), //TODO: add details
+            Some(n) => Err(unexpected_op_err(
+                n.to_string(),
+                vec![
+                    "select".to_string(),
+                    "from".to_string(),
+                    "where".to_string(),
+                    "create table".to_string(),
+                    "insert into".to_string(),
+                ],
+            )),
         }
+    }
+}
+
+fn unexpected_op_err(actual_op: String, expected_ops: Vec<String>) -> AnalyzeError {
+    AnalyzeError {
+        src: "".to_string(), // TODO: get from context
+        snip: (1, 0),        // TODO: get from context
+        message: format!(
+            "Unexpected operator: {:?}, expected one of {:?}",
+            actual_op, expected_ops
+        ),
+        source_err: None,
+    }
+}
+
+fn analyze_err(message: &str) -> AnalyzeError {
+    AnalyzeError {
+        src: "".to_string(), // TODO: get from context
+        snip: (1, 0),        // TODO: get from context
+        message: message.to_string(),
+        source_err: None,
     }
 }
 
@@ -127,7 +143,7 @@ impl ColumnWalker {
         ColumnWalker { columns: vec![] }
     }
 
-    fn walk(&mut self, node: &Node) -> Result<Vec<Column>, ParseError> {
+    fn walk(&mut self, node: &Node) -> Result<Vec<Column>, AnalyzeError> {
         match node.op() {
             Some(Op::Comma) => {
                 let children = node.children();
@@ -137,21 +153,12 @@ impl ColumnWalker {
                 Ok(self.columns.clone())
             }
             None => {
-                let column_name = match node.literal().unwrap() {
-                    Literal::Identifier {
-                        first_name,
-                        second_name: _,
-                        third_name: _,
-                    } => first_name,
-                    _ => panic!("unexpected node: {:?}", node),
-                };
+                let column_name = get_str_identifier_or_err(node)?;
                 self.columns.push(Column { column_name });
 
                 Ok(self.columns.clone())
             }
-            n => {
-                panic!("unexpected node: {:?}", n);
-            }
+            Some(o) => Err(unexpected_op_err(o.to_string(), vec!["comma".to_string()])),
         }
     }
 }
@@ -160,12 +167,27 @@ struct TableWalker {
     tables: Vec<Table>,
 }
 
+fn get_str_identifier_or_err(node: &Node) -> Result<String, AnalyzeError> {
+    match node.literal() {
+        Some(Literal::Identifier {
+            first_name,
+            second_name: _,
+            third_name: _,
+        }) => Ok(first_name),
+        Some(o) => Err(unexpected_op_err(
+            o.to_string(),
+            vec!["identifier".to_string()],
+        )),
+        None => Err(analyze_err("Can not analyze query")), //TODO: add details
+    }
+}
+
 impl TableWalker {
     fn new() -> Self {
         TableWalker { tables: vec![] }
     }
 
-    fn walk(&mut self, node: &Node) -> Result<Vec<Table>, ParseError> {
+    fn walk(&mut self, node: &Node) -> Result<Vec<Table>, AnalyzeError> {
         match node.op() {
             Some(Op::Comma) => {
                 let children = node.children();
@@ -175,21 +197,12 @@ impl TableWalker {
                 Ok(self.tables.clone())
             }
             None => {
-                let table_name = match node.literal().unwrap() {
-                    Literal::Identifier {
-                        first_name,
-                        second_name: _,
-                        third_name: _,
-                    } => first_name,
-                    _ => panic!("unexpected node: {:?}", node),
-                };
+                let table_name = get_str_identifier_or_err(node)?;
                 self.tables.push(Table { table_name });
 
                 Ok(self.tables.clone())
             }
-            n => {
-                panic!("unexpected node: {:?}", n);
-            }
+            Some(o) => return Err(unexpected_op_err(o.to_string(), vec!["comma".to_string()])),
         }
     }
 }
@@ -201,7 +214,7 @@ impl WhereWalker {
         WhereWalker {}
     }
 
-    fn walk(&mut self, node: &Node) -> Result<LogicalNode, ParseError> {
+    fn walk(&mut self, node: &Node) -> Result<LogicalNode, AnalyzeError> {
         match node.op() {
             Some(Op::Equals) => {
                 let children = node.children();
@@ -236,9 +249,14 @@ impl WhereWalker {
                     op: Operator::Const(Constant::Str(s.to_string())),
                     children: vec![],
                 }),
-                n => panic!("unexpected node: {:?}", n),
+                _ => return Err(analyze_err("Can not analyze query")), //TODO: add details
             },
-            n => panic!("unexpected node: {:?}", n),
+            Some(o) => {
+                return Err(unexpected_op_err(
+                    o.to_string(),
+                    vec!["equals".to_string(), "literal".to_string()],
+                ))
+            }
         }
     }
 }
@@ -254,7 +272,7 @@ impl CreateTableWalker {
         }
     }
 
-    fn walk(&mut self, node: &Node) -> Result<LogicalNode, ParseError> {
+    fn walk(&mut self, node: &Node) -> Result<LogicalNode, AnalyzeError> {
         let children = node.children();
         let table_name = match children[0].clone()?.literal().unwrap() {
             Literal::Identifier {
@@ -262,7 +280,7 @@ impl CreateTableWalker {
                 second_name: _,
                 third_name: _,
             } => first_name,
-            _ => panic!("unexpected node: {:?}", node),
+            _ => return Err(analyze_err("Can not analyze query")), //TODO: add details
         };
         let columns = &children[1].clone()?;
         self.seen_tables.push(table_name.to_string());
@@ -276,20 +294,17 @@ impl CreateTableWalker {
         })
     }
 
-    fn walk_column_definition(&mut self, node: &Node) -> Result<Vec<ColumnDefinition>, ParseError> {
+    fn walk_column_definition(
+        &mut self,
+        node: &Node,
+    ) -> Result<Vec<ColumnDefinition>, AnalyzeError> {
         match node.op() {
             Some(Op::ColumnDefinition) => {
-                let children = node.children();
-                let column_name = match children[0].clone()?.literal().unwrap() {
-                    Literal::Identifier {
-                        first_name,
-                        second_name: _,
-                        third_name: _,
-                    } => first_name,
-                    _ => panic!("unexpected node: {:?}", node),
-                };
+                let children0 = node.children()[0].clone()?;
+                let column_name = get_str_identifier_or_err(&children0)?;
 
-                let column_type = children[1].clone()?.ttype().unwrap();
+                let children1 = node.children()[1].clone()?;
+                let column_type = children1.ttype().unwrap();
 
                 Ok(vec![ColumnDefinition {
                     column_name,
@@ -306,10 +321,13 @@ impl CreateTableWalker {
                 Ok(columns)
             }
             None => {
-                panic!("unexpected node: {:?}", node);
+                return Err(analyze_err("Can not analyze query")); //TODO: add details
             }
-            n => {
-                panic!("unexpected node: {:?}", n);
+            Some(n) => {
+                return Err(unexpected_op_err(
+                    n.to_string(),
+                    vec!["column_definition".to_string(), "comma".to_string()],
+                ));
             }
         }
     }
@@ -326,16 +344,9 @@ impl InsertIntoWalker {
         }
     }
 
-    fn walk(&mut self, node: &Node) -> Result<LogicalNode, ParseError> {
+    fn walk(&mut self, node: &Node) -> Result<LogicalNode, AnalyzeError> {
         let children = node.children();
-        let table_name = match children[0].clone()?.literal().unwrap() {
-            Literal::Identifier {
-                first_name,
-                second_name: _,
-                third_name: _,
-            } => first_name,
-            _ => panic!("unexpected node: {:?}", node),
-        };
+        let table_name = get_str_identifier_or_err(&children[0].clone()?)?;
         let columns = &children[1].clone()?;
         let values = &children[2].clone()?;
 
@@ -351,7 +362,7 @@ impl InsertIntoWalker {
         })
     }
 
-    fn walk_columns(&mut self, node: &Node) -> Result<Vec<Column>, ParseError> {
+    fn walk_columns(&mut self, node: &Node) -> Result<Vec<Column>, AnalyzeError> {
         match node.op() {
             Some(Op::ColumnList) => {
                 let mut columns = vec![];
@@ -359,11 +370,14 @@ impl InsertIntoWalker {
                     match c.clone()?.op() {
                         Some(Op::Comma) => {}
                         None => {
-                            let column_name = Self::get_str_literal(&c?);
+                            let column_name = Self::get_str_literal(&c?)?;
                             columns.push(Column { column_name });
                         }
-                        n => {
-                            panic!("unexpected node: {:?}", n);
+                        Some(n) => {
+                            return Err(unexpected_op_err(
+                                n.to_string(),
+                                vec!["comma".to_string(), "literal".to_string()],
+                            ));
                         }
                     }
                 }
@@ -371,15 +385,18 @@ impl InsertIntoWalker {
                 Ok(columns)
             }
             None => {
-                panic!("unexpected node: {:?}", node);
+                return Err(analyze_err("Can not analyze query")); //TODO: add details
             }
-            n => {
-                panic!("unexpected node: {:?}", n);
+            Some(n) => {
+                return Err(unexpected_op_err(
+                    n.to_string(),
+                    vec!["column_list".to_string()],
+                ));
             }
         }
     }
 
-    fn walk_values(&mut self, node: &Node) -> Result<Vec<Constant>, ParseError> {
+    fn walk_values(&mut self, node: &Node) -> Result<Vec<Constant>, AnalyzeError> {
         match node.op() {
             Some(Op::Values) => {
                 let mut values = vec![];
@@ -387,10 +404,13 @@ impl InsertIntoWalker {
                     match c.clone()?.op() {
                         Some(Op::Comma) => {}
                         None => {
-                            values.push(Self::get_constant(&c?));
+                            values.push(Self::get_constant(&c?)?);
                         }
-                        n => {
-                            panic!("unexpected node: {:?}", n);
+                        Some(n) => {
+                            return Err(unexpected_op_err(
+                                n.to_string(),
+                                vec!["comma".to_string(), "literal".to_string()],
+                            ));
                         }
                     }
                 }
@@ -398,29 +418,27 @@ impl InsertIntoWalker {
                 Ok(values)
             }
             None => {
-                panic!("unexpected node: {:?}", node);
+                Err(analyze_err("Can not analyze query")) //TODO: add details
             }
-            n => {
-                panic!("unexpected node: {:?}", n);
-            }
+            Some(n) => Err(unexpected_op_err(n.to_string(), vec!["values".to_string()])),
         }
     }
 
-    fn get_str_literal(node: &Node) -> String {
+    fn get_str_literal(node: &Node) -> Result<String, AnalyzeError> {
         match node.literal().unwrap() {
             Literal::Identifier {
                 first_name,
                 second_name: _,
                 third_name: _,
-            } => first_name,
-            _ => panic!("unexpected node: {:?}", node),
+            } => Ok(first_name),
+            _ => Err(analyze_err("Can not analyze query")), //TODO: add details
         }
     }
 
-    fn get_constant(node: &Node) -> Constant {
+    fn get_constant(node: &Node) -> Result<Constant, AnalyzeError> {
         match node.literal().unwrap() {
-            Literal::Numeric(n) => Constant::Num(n),
-            _ => panic!("unexpected node: {:?}", node),
+            Literal::Numeric(n) => Ok(Constant::Num(n)),
+            _ => Err(analyze_err("Can not analyze query")), //TODO: add details
         }
     }
 }

@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::types::ColType;
 
 use super::errors::ParseError;
@@ -13,6 +15,32 @@ pub enum Literal {
     },
     Float(f32),
     Bool(bool),
+}
+
+impl Display for Literal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Literal::Numeric(n) => write!(f, "{}", n),
+            Literal::String(s) => write!(f, "{}", s),
+            Literal::Identifier {
+                first_name,
+                second_name,
+                third_name,
+            } => {
+                if let Some(second_name) = second_name {
+                    if let Some(third_name) = third_name {
+                        write!(f, "{}.{}.{}", first_name, second_name, third_name)
+                    } else {
+                        write!(f, "{}.{}", first_name, second_name)
+                    }
+                } else {
+                    write!(f, "{}", first_name)
+                }
+            }
+            Literal::Float(fl) => write!(f, "{}", fl),
+            Literal::Bool(b) => write!(f, "{}", b),
+        }
+    }
 }
 
 impl Literal {
@@ -123,4 +151,35 @@ pub enum Op {
     ColumnDefinition,
     ColumnList,
     Values,
+}
+
+impl Display for Op {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Op::And => write!(f, "AND"),
+            Op::Or => write!(f, "OR"),
+            Op::Plus => write!(f, "+"),
+            Op::Minus => write!(f, "-"),
+            Op::Multiply => write!(f, "*"),
+            Op::Divide => write!(f, "/"),
+            Op::Equals => write!(f, "="),
+            Op::NotEquals => write!(f, "<>"),
+            Op::LessThan => write!(f, "<"),
+            Op::GreaterThan => write!(f, ">"),
+            Op::LessThanOrEquals => write!(f, "<="),
+            Op::GreaterThanOrEquals => write!(f, ">="),
+            Op::Not => write!(f, "NOT"),
+            Op::CloseParen => write!(f, ")"),
+            Op::Comma => write!(f, ","),
+            Op::Select => write!(f, "SELECT"),
+            Op::From => write!(f, "FROM"),
+            Op::Where => write!(f, "WHERE"),
+            Op::CreateTable => write!(f, "CREATE TABLE"),
+            Op::DropTable => write!(f, "DROP TABLE"),
+            Op::InsertInto => write!(f, "INSERT INTO"),
+            Op::ColumnDefinition => write!(f, "COLUMN DEFINITION"),
+            Op::ColumnList => write!(f, "COLUMN LIST"),
+            Op::Values => write!(f, "VALUES"),
+        }
+    }
 }
